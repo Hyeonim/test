@@ -8,16 +8,15 @@ import java.util.Random;
 
 public class RandomTowerDefense extends JPanel implements ActionListener {
     private int life = 10;
-    private int gold = 100; // 테스트를 위해 초기 미네랄 증가
+    private int gold = 100;
 
     private int wave = 1;
     private int waveTimer = 600;
     private int spawnCooldown = 20;
     private final int MAX_FIELD_MONSTERS = 50;
 
-    // 업그레이드 레벨 (0: 불, 1: 물, 2: 풀)
     private int[] upgradeLevels = {0, 0, 0};
-    private final int UPGRADE_COST = 20; // 업그레이드 비용
+    private final int UPGRADE_COST = 20;
 
     private final int[][] mapGrid = {
             {0, 0, 0, 0, 0},
@@ -33,7 +32,7 @@ public class RandomTowerDefense extends JPanel implements ActionListener {
 
     private Tile[][] tiles = new Tile[5][5];
     private Tile selectedTile = null;
-    private Monster selectedMonster = null; // 선택된 몹 확인용
+    private Monster selectedMonster = null;
 
     private List<Monster> monsters = new ArrayList<>();
     private List<Laser> lasers = new ArrayList<>();
@@ -41,7 +40,6 @@ public class RandomTowerDefense extends JPanel implements ActionListener {
     private Random random = new Random();
 
     public RandomTowerDefense() {
-        // 창 높이를 650으로 늘림 (하단 100px은 상태창 UI)
         setPreferredSize(new Dimension(500, 650));
         setBackground(Color.DARK_GRAY);
 
@@ -58,21 +56,20 @@ public class RandomTowerDefense extends JPanel implements ActionListener {
                 int mouseX = e.getX();
                 int mouseY = e.getY();
 
-                // 1. 하단 UI 영역 (업그레이드 버튼) 클릭 감지
+                // 1. 하단 UI 영역 (업그레이드 버튼)
                 if (mouseY >= 550) {
                     if (mouseY >= 580 && mouseY <= 620) {
-                        if (mouseX >= 280 && mouseX <= 340) doUpgrade(0); // 불 업글
-                        else if (mouseX >= 350 && mouseX <= 410) doUpgrade(1); // 물 업글
-                        else if (mouseX >= 420 && mouseX <= 480) doUpgrade(2); // 풀 업글
+                        if (mouseX >= 280 && mouseX <= 340) doUpgrade(0);
+                        else if (mouseX >= 350 && mouseX <= 410) doUpgrade(1);
+                        else if (mouseX >= 420 && mouseX <= 480) doUpgrade(2);
                     }
                     return;
                 }
 
-                // 2. 몬스터 클릭 감지 (타워보다 우선)
+                // 2. 몬스터 클릭
                 boolean clickedMonster = false;
                 for (int i = monsters.size() - 1; i >= 0; i--) {
                     Monster m = monsters.get(i);
-                    // 몬스터 중심점과의 거리 계산 (클릭 판정)
                     if (Math.hypot(m.x + 10 - mouseX, m.y + 10 - mouseY) <= 15) {
                         selectedMonster = m;
                         if (selectedTile != null) selectedTile.isSelected = false;
@@ -82,12 +79,12 @@ public class RandomTowerDefense extends JPanel implements ActionListener {
                     }
                 }
 
-                // 3. 맵 타일 클릭 감지
+                // 3. 맵 타일 클릭
                 if (!clickedMonster && mouseY >= 50 && mouseY < 550) {
                     int gridX = mouseX / TILE_SIZE;
                     int gridY = (mouseY - 50) / TILE_SIZE;
 
-                    selectedMonster = null; // 타일 클릭 시 몹 선택 해제
+                    selectedMonster = null;
                     if (gridX >= 0 && gridX < 5 && gridY >= 0 && gridY < 5) {
                         handleTileClick(tiles[gridY][gridX]);
                     }
@@ -100,7 +97,6 @@ public class RandomTowerDefense extends JPanel implements ActionListener {
         gameLoop.start();
     }
 
-    // 업그레이드 처리 로직
     private void doUpgrade(int typeIndex) {
         if (gold >= UPGRADE_COST) {
             gold -= UPGRADE_COST;
@@ -119,6 +115,7 @@ public class RandomTowerDefense extends JPanel implements ActionListener {
         }
 
         if (!tile.hasTower) {
+            // 빈 칸에 건설
             if (selectedTile == null && gold >= 10) {
                 gold -= 10;
                 int typeIndex = random.nextInt(types.length);
@@ -126,18 +123,25 @@ public class RandomTowerDefense extends JPanel implements ActionListener {
             }
         } else {
             if (selectedTile == null) {
+                // 타워 선택
                 selectedTile = tile;
                 tile.isSelected = true;
             } else {
+                // 두 타워 합치기 로직
                 if (selectedTile != tile &&
                         selectedTile.towerType.equals(tile.towerType) &&
                         selectedTile.tier == tile.tier) {
 
-                    tile.tier++;
+                    int newTier = tile.tier + 1;
+                    // ★ 핵심 변경 포인트: 합쳐질 때 새로운 랜덤 속성 부여
+                    int randomTypeIndex = random.nextInt(types.length);
+
+                    tile.setTower(types[randomTypeIndex], typeColors[randomTypeIndex], newTier, randomTypeIndex);
                     selectedTile.clearTower();
                 }
+
                 selectedTile.isSelected = false;
-                selectedTile = tile; // 합치든 안 합치든 클릭한 걸 다시 선택
+                selectedTile = tile;
                 tile.isSelected = true;
             }
         }
@@ -174,7 +178,7 @@ public class RandomTowerDefense extends JPanel implements ActionListener {
             Monster m = mobIter.next();
             if (m.hp <= 0) {
                 gold += 5;
-                if (selectedMonster == m) selectedMonster = null; // 죽으면 선택 해제
+                if (selectedMonster == m) selectedMonster = null;
                 mobIter.remove();
             } else if (!m.move()) {
                 if (selectedMonster == m) selectedMonster = null;
@@ -200,7 +204,6 @@ public class RandomTowerDefense extends JPanel implements ActionListener {
                             else if (t.towerType.equals("풀") && target.element.equals("물")) multiplier = 1.5;
                             else if (t.towerType.equals("풀") && target.element.equals("불")) multiplier = 0.5;
 
-                            // 데미지 공식: (기본 데미지 20 * 티어) + (업그레이드 수치 * 10 * 티어)
                             int baseDamage = (t.tier * 20) + (upgradeLevels[t.typeIndex] * 10 * t.tier);
                             target.hp -= (int)(baseDamage * multiplier);
                             t.cooldownTimer = 20;
@@ -232,7 +235,6 @@ public class RandomTowerDefense extends JPanel implements ActionListener {
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
 
-        // 1. 상단 UI (기존 동일)
         g.setColor(Color.WHITE);
         g.setFont(new Font("맑은 고딕", Font.BOLD, 14));
         String spawnText = (waveTimer > 200) ? String.format("%.1f초", spawnCooldown / 20.0) : "휴식중";
@@ -248,7 +250,6 @@ public class RandomTowerDefense extends JPanel implements ActionListener {
             g.drawString("GAME OVER", 180, 35);
         }
 
-        // 2. 맵 및 타워
         for (int y = 0; y < 5; y++) {
             for (int x = 0; x < 5; x++) {
                 Tile t = tiles[y][x];
@@ -273,13 +274,12 @@ public class RandomTowerDefense extends JPanel implements ActionListener {
             }
         }
 
-        // 3. 몬스터 (선택된 몹은 노란색 테두리로 표시)
         for (Monster m : monsters) {
             g.setColor(m.color);
             g.fillOval((int)m.x, (int)m.y, 20, 20);
 
             if (m == selectedMonster) {
-                g.setColor(Color.YELLOW); // 선택된 몹 강조
+                g.setColor(Color.YELLOW);
                 g.drawOval((int)m.x - 2, (int)m.y - 2, 24, 24);
                 g.drawOval((int)m.x - 3, (int)m.y - 3, 26, 26);
             } else {
@@ -302,15 +302,12 @@ public class RandomTowerDefense extends JPanel implements ActionListener {
             g2.drawLine(l.startX, l.startY, l.endX, l.endY);
         }
 
-        // ==========================================
-        // 4. 하단 상태창 UI (Y: 550 ~ 650)
-        // ==========================================
+        // 하단 상태창
         g.setColor(new Color(40, 40, 40));
         g.fillRect(0, 550, 500, 100);
         g.setColor(Color.LIGHT_GRAY);
-        g.drawRect(0, 550, 500, 100); // 상태창 테두리
+        g.drawRect(0, 550, 500, 100);
 
-        // 4-1. 왼쪽: 타워/몹 스탯 정보창
         g.drawRect(10, 560, 250, 80);
         g.setColor(Color.WHITE);
         g.setFont(new Font("맑은 고딕", Font.BOLD, 15));
@@ -329,22 +326,19 @@ public class RandomTowerDefense extends JPanel implements ActionListener {
             g.drawString("타워나 몬스터를 클릭하세요.", 20, 605);
         }
 
-        // 4-2. 오른쪽: 글로벌 업그레이드 구역
         g.setColor(Color.LIGHT_GRAY);
         g.drawRect(270, 560, 220, 80);
         g.setColor(Color.WHITE);
         g.drawString("공격력 업그레이드 (20원)", 280, 575);
 
-        // 버튼(모양) 그리기
         String[] btnNames = {"불", "물", "풀"};
         for (int i = 0; i < 3; i++) {
             int bx = 280 + (i * 70);
             g.setColor(typeColors[i]);
-            g.fillRect(bx, 580, 60, 40); // 60x40 버튼
+            g.fillRect(bx, 580, 60, 40);
             g.setColor(Color.BLACK);
             g.drawRect(bx, 580, 60, 40);
 
-            // 버튼 텍스트 (Lv 표시)
             g.setFont(new Font("맑은 고딕", Font.BOLD, 13));
             g.drawString(btnNames[i] + " Lv." + upgradeLevels[i], bx + 8, 605);
         }
@@ -395,7 +389,7 @@ public class RandomTowerDefense extends JPanel implements ActionListener {
     }
 
     public static void main(String[] args) {
-        JFrame frame = new JFrame("스타 랜타디 - UI 및 업그레이드");
+        JFrame frame = new JFrame("스타 랜타디 - 완전 랜덤 병합");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.add(new RandomTowerDefense());
         frame.pack();
