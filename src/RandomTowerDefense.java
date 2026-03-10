@@ -8,13 +8,16 @@ import java.util.Random;
 
 public class RandomTowerDefense extends JPanel implements ActionListener {
     private int life = 10;
-    private int gold = 50;
+    private int gold = 100; // 테스트를 위해 초기 미네랄 증가
 
-    // 웨이브 및 자동 스폰 관련 변수
     private int wave = 1;
-    private int waveTimer = 600; // 1라운드 = 30초 (50ms * 600틱)
-    private int spawnCooldown = 20; // 스폰 간격 = 1초 (50ms * 20틱)
-    private final int MAX_FIELD_MONSTERS = 50; // 랜타디 패배 조건 (필드 몹 제한)
+    private int waveTimer = 600;
+    private int spawnCooldown = 20;
+    private final int MAX_FIELD_MONSTERS = 50;
+
+    // 업그레이드 레벨 (0: 불, 1: 물, 2: 풀)
+    private int[] upgradeLevels = {0, 0, 0};
+    private final int UPGRADE_COST = 20; // 업그레이드 비용
 
     private final int[][] mapGrid = {
             {0, 0, 0, 0, 0},
@@ -30,6 +33,7 @@ public class RandomTowerDefense extends JPanel implements ActionListener {
 
     private Tile[][] tiles = new Tile[5][5];
     private Tile selectedTile = null;
+    private Monster selectedMonster = null; // 선택된 몹 확인용
 
     private List<Monster> monsters = new ArrayList<>();
     private List<Laser> lasers = new ArrayList<>();
@@ -37,7 +41,8 @@ public class RandomTowerDefense extends JPanel implements ActionListener {
     private Random random = new Random();
 
     public RandomTowerDefense() {
-        setPreferredSize(new Dimension(500, 550));
+        // 창 높이를 650으로 늘림 (하단 100px은 상태창 UI)
+        setPreferredSize(new Dimension(500, 650));
         setBackground(Color.DARK_GRAY);
 
         for (int y = 0; y < 5; y++) {
@@ -47,16 +52,47 @@ public class RandomTowerDefense extends JPanel implements ActionListener {
             }
         }
 
-        // 수동 몹 소환 버튼 삭제, 타워 건설/조합만 남김
         addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {
-                int gridX = e.getX() / TILE_SIZE;
-                int gridY = (e.getY() - 50) / TILE_SIZE; // 상단 UI 여백 50 제외
+                int mouseX = e.getX();
+                int mouseY = e.getY();
 
-                if (gridX >= 0 && gridX < 5 && gridY >= 0 && gridY < 5) {
-                    handleTileClick(tiles[gridY][gridX]);
+                // 1. 하단 UI 영역 (업그레이드 버튼) 클릭 감지
+                if (mouseY >= 550) {
+                    if (mouseY >= 580 && mouseY <= 620) {
+                        if (mouseX >= 280 && mouseX <= 340) doUpgrade(0); // 불 업글
+                        else if (mouseX >= 350 && mouseX <= 410) doUpgrade(1); // 물 업글
+                        else if (mouseX >= 420 && mouseX <= 480) doUpgrade(2); // 풀 업글
+                    }
+                    return;
                 }
+
+                // 2. 몬스터 클릭 감지 (타워보다 우선)
+                boolean clickedMonster = false;
+                for (int i = monsters.size() - 1; i >= 0; i--) {
+                    Monster m = monsters.get(i);
+                    // 몬스터 중심점과의 거리 계산 (클릭 판정)
+                    if (Math.hypot(m.x + 10 - mouseX, m.y + 10 - mouseY) <= 15) {
+                        selectedMonster = m;
+                        if (selectedTile != null) selectedTile.isSelected = false;
+                        selectedTile = null;
+                        clickedMonster = true;
+                        break;
+                    }
+                }
+
+                // 3. 맵 타일 클릭 감지
+                if (!clickedMonster && mouseY >= 50 && mouseY < 550) {
+                    int gridX = mouseX / TILE_SIZE;
+                    int gridY = (mouseY - 50) / TILE_SIZE;
+
+                    selectedMonster = null; // 타일 클릭 시 몹 선택 해제
+                    if (gridX >= 0 && gridX < 5 && gridY >= 0 && gridY < 5) {
+                        handleTileClick(tiles[gridY][gridX]);
+                    }
+                }
+                repaint();
             }
         });
 
@@ -64,14 +100,29 @@ public class RandomTowerDefense extends JPanel implements ActionListener {
         gameLoop.start();
     }
 
+    // 업그레이드 처리 로직
+    private void doUpgrade(int typeIndex) {
+        if (gold >= UPGRADE_COST) {
+            gold -= UPGRADE_COST;
+            upgradeLevels[typeIndex]++;
+        } else {
+            System.out.println("미네랄이 부족합니다!");
+        }
+        repaint();
+    }
+
     private void handleTileClick(Tile tile) {
-        if (!tile.isBuildable) return;
+        if (!tile.isBuildable) {
+            if (selectedTile != null) selectedTile.isSelected = false;
+            selectedTile = null;
+            return;
+        }
 
         if (!tile.hasTower) {
             if (selectedTile == null && gold >= 10) {
                 gold -= 10;
                 int typeIndex = random.nextInt(types.length);
-                tile.setTower(types[typeIndex], typeColors[typeIndex], 1);
+                tile.setTower(types[typeIndex], typeColors[typeIndex], 1, typeIndex);
             }
         } else {
             if (selectedTile == null) {
@@ -86,83 +137,71 @@ public class RandomTowerDefense extends JPanel implements ActionListener {
                     selectedTile.clearTower();
                 }
                 selectedTile.isSelected = false;
-                selectedTile = null;
+                selectedTile = tile; // 합치든 안 합치든 클릭한 걸 다시 선택
+                tile.isSelected = true;
             }
         }
-        repaint();
     }
 
     private void spawnMonster() {
         int typeIndex = random.nextInt(types.length);
-        String mobElement = types[typeIndex];
-        Color mobColor = typeColors[typeIndex];
-
-        // 웨이브마다 몹의 체력이 기하급수적으로 증가
         int maxHp = 100 + ((wave - 1) * 80);
-        monsters.add(new Monster(20, 70, mobElement, mobColor, maxHp));
+        monsters.add(new Monster(20, 70, types[typeIndex], typeColors[typeIndex], maxHp));
     }
 
     @Override
     public void actionPerformed(ActionEvent e) {
-        if (life <= 0) return; // 게임 오버 시 멈춤
+        if (life <= 0) return;
 
-        // 1. 자동 웨이브 및 스폰 타이머 관리
         waveTimer--;
         if (waveTimer <= 0) {
             wave++;
-            waveTimer = 600; // 30초 리셋
+            waveTimer = 600;
         }
 
-        // 라운드 30초 중 앞의 20초(400틱) 동안만 몹을 소환하고, 뒤의 10초는 다음 웨이브 대기
         if (waveTimer > 200) {
             spawnCooldown--;
             if (spawnCooldown <= 0) {
                 spawnMonster();
-                spawnCooldown = 20; // 1초(20틱) 후 다시 소환
+                spawnCooldown = 20;
             }
         }
 
-        // 2. 패배 조건 체크 (필드 몹 초과)
-        if (monsters.size() >= MAX_FIELD_MONSTERS) {
-            life = 0;
-            System.out.println("필드 몹 마리 수 초과! 게임 오버!");
-        }
+        if (monsters.size() >= MAX_FIELD_MONSTERS) life = 0;
 
-        // 3. 몹 이동 및 사망 처리
         Iterator<Monster> mobIter = monsters.iterator();
         while (mobIter.hasNext()) {
             Monster m = mobIter.next();
             if (m.hp <= 0) {
                 gold += 5;
+                if (selectedMonster == m) selectedMonster = null; // 죽으면 선택 해제
                 mobIter.remove();
             } else if (!m.move()) {
+                if (selectedMonster == m) selectedMonster = null;
                 mobIter.remove();
                 life--;
             }
         }
 
-        // 4. 타워 공격 로직 및 상성 계산
+        // 타워 공격 로직
         for (int y = 0; y < 5; y++) {
             for (int x = 0; x < 5; x++) {
                 Tile t = tiles[y][x];
                 if (t.hasTower) {
-                    if (t.cooldownTimer > 0) {
-                        t.cooldownTimer--;
-                    } else {
+                    if (t.cooldownTimer > 0) t.cooldownTimer--;
+                    else {
                         Monster target = findClosestMonster(t);
                         if (target != null) {
                             double multiplier = 1.0;
-                            String atk = t.towerType;
-                            String def = target.element;
+                            if (t.towerType.equals("불") && target.element.equals("풀")) multiplier = 1.5;
+                            else if (t.towerType.equals("불") && target.element.equals("물")) multiplier = 0.5;
+                            else if (t.towerType.equals("물") && target.element.equals("불")) multiplier = 1.5;
+                            else if (t.towerType.equals("물") && target.element.equals("풀")) multiplier = 0.5;
+                            else if (t.towerType.equals("풀") && target.element.equals("물")) multiplier = 1.5;
+                            else if (t.towerType.equals("풀") && target.element.equals("불")) multiplier = 0.5;
 
-                            if (atk.equals("불") && def.equals("풀")) multiplier = 1.5;
-                            else if (atk.equals("불") && def.equals("물")) multiplier = 0.5;
-                            else if (atk.equals("물") && def.equals("불")) multiplier = 1.5;
-                            else if (atk.equals("물") && def.equals("풀")) multiplier = 0.5;
-                            else if (atk.equals("풀") && def.equals("물")) multiplier = 1.5;
-                            else if (atk.equals("풀") && def.equals("불")) multiplier = 0.5;
-
-                            int baseDamage = t.tier * 20;
+                            // 데미지 공식: (기본 데미지 20 * 티어) + (업그레이드 수치 * 10 * 티어)
+                            int baseDamage = (t.tier * 20) + (upgradeLevels[t.typeIndex] * 10 * t.tier);
                             target.hp -= (int)(baseDamage * multiplier);
                             t.cooldownTimer = 20;
                             lasers.add(new Laser(t.x + 50, t.y + 100, (int)target.x + 10, (int)target.y + 10, t.color));
@@ -182,11 +221,9 @@ public class RandomTowerDefense extends JPanel implements ActionListener {
         double range = 150.0;
 
         for (Monster m : monsters) {
-            int mobCenterX = (int)m.x + 10;
-            int mobCenterY = (int)m.y + 10;
-            double dx = mobCenterX - towerCenterX;
-            double dy = mobCenterY - towerCenterY;
-            if (Math.sqrt(dx * dx + dy * dy) <= range) return m;
+            double dx = (m.x + 10) - towerCenterX;
+            double dy = (m.y + 10) - towerCenterY;
+            if (Math.hypot(dx, dy) <= range) return m;
         }
         return null;
     }
@@ -195,27 +232,23 @@ public class RandomTowerDefense extends JPanel implements ActionListener {
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
 
-        // 상단 UI 업데이트 (두 줄로 나누어 더 많은 정보 표시)
+        // 1. 상단 UI (기존 동일)
         g.setColor(Color.WHITE);
         g.setFont(new Font("맑은 고딕", Font.BOLD, 14));
-
-        // 스폰 남은 시간 계산 (대기 시간 중이면 "대기중" 출력)
         String spawnText = (waveTimer > 200) ? String.format("%.1f초", spawnCooldown / 20.0) : "휴식중";
 
         if (life > 0) {
-            g.drawString("Wave: " + wave + " | 라운드 남은 시간: " + (waveTimer / 20) + "초 | 몹 스폰: " + spawnText, 10, 20);
-
-            // 필드 몹 마리수가 위험해지면 빨간색으로 경고
+            g.drawString("Wave: " + wave + " | 남은 시간: " + (waveTimer / 20) + "초 | 몹 스폰: " + spawnText, 10, 20);
             if (monsters.size() >= 40) g.setColor(Color.RED);
-            else g.setColor(new Color(200, 200, 255)); // 옅은 파란색
-            g.drawString("필드 몹: " + monsters.size() + " / " + MAX_FIELD_MONSTERS + " 마리 | 라이프: " + life + " | 미네랄: " + gold, 10, 42);
+            else g.setColor(new Color(200, 200, 255));
+            g.drawString("필드 몹: " + monsters.size() + " / " + MAX_FIELD_MONSTERS + " | 라이프: " + life + " | 미네랄: " + gold, 10, 42);
         } else {
             g.setColor(Color.RED);
             g.setFont(new Font("맑은 고딕", Font.BOLD, 24));
             g.drawString("GAME OVER", 180, 35);
         }
 
-        // 맵 및 타워 그리기 (이하 동일)
+        // 2. 맵 및 타워
         for (int y = 0; y < 5; y++) {
             for (int x = 0; x < 5; x++) {
                 Tile t = tiles[y][x];
@@ -240,11 +273,20 @@ public class RandomTowerDefense extends JPanel implements ActionListener {
             }
         }
 
+        // 3. 몬스터 (선택된 몹은 노란색 테두리로 표시)
         for (Monster m : monsters) {
             g.setColor(m.color);
             g.fillOval((int)m.x, (int)m.y, 20, 20);
-            g.setColor(Color.WHITE);
-            g.drawOval((int)m.x, (int)m.y, 20, 20);
+
+            if (m == selectedMonster) {
+                g.setColor(Color.YELLOW); // 선택된 몹 강조
+                g.drawOval((int)m.x - 2, (int)m.y - 2, 24, 24);
+                g.drawOval((int)m.x - 3, (int)m.y - 3, 26, 26);
+            } else {
+                g.setColor(Color.WHITE);
+                g.drawOval((int)m.x, (int)m.y, 20, 20);
+            }
+
             g.setColor(Color.RED);
             g.fillRect((int)m.x - 5, (int)m.y - 10, 30, 5);
             g.setColor(Color.GREEN);
@@ -259,6 +301,53 @@ public class RandomTowerDefense extends JPanel implements ActionListener {
             g2.setStroke(new BasicStroke(3));
             g2.drawLine(l.startX, l.startY, l.endX, l.endY);
         }
+
+        // ==========================================
+        // 4. 하단 상태창 UI (Y: 550 ~ 650)
+        // ==========================================
+        g.setColor(new Color(40, 40, 40));
+        g.fillRect(0, 550, 500, 100);
+        g.setColor(Color.LIGHT_GRAY);
+        g.drawRect(0, 550, 500, 100); // 상태창 테두리
+
+        // 4-1. 왼쪽: 타워/몹 스탯 정보창
+        g.drawRect(10, 560, 250, 80);
+        g.setColor(Color.WHITE);
+        g.setFont(new Font("맑은 고딕", Font.BOLD, 15));
+
+        if (selectedTile != null && selectedTile.hasTower) {
+            int currentAtk = (selectedTile.tier * 20) + (upgradeLevels[selectedTile.typeIndex] * 10 * selectedTile.tier);
+            g.drawString("선택됨: " + selectedTile.towerType + " 타워 (Lv." + selectedTile.tier + ")", 20, 585);
+            g.drawString("공격력: " + currentAtk, 20, 610);
+            g.setColor(Color.YELLOW);
+            g.drawString("(+업글 보너스: " + (upgradeLevels[selectedTile.typeIndex] * 10 * selectedTile.tier) + ")", 20, 630);
+        } else if (selectedMonster != null) {
+            g.drawString("선택됨: " + selectedMonster.element + " 속성 몬스터", 20, 585);
+            g.drawString("체력: " + selectedMonster.hp + " / " + selectedMonster.maxHp, 20, 610);
+        } else {
+            g.setColor(Color.GRAY);
+            g.drawString("타워나 몬스터를 클릭하세요.", 20, 605);
+        }
+
+        // 4-2. 오른쪽: 글로벌 업그레이드 구역
+        g.setColor(Color.LIGHT_GRAY);
+        g.drawRect(270, 560, 220, 80);
+        g.setColor(Color.WHITE);
+        g.drawString("공격력 업그레이드 (20원)", 280, 575);
+
+        // 버튼(모양) 그리기
+        String[] btnNames = {"불", "물", "풀"};
+        for (int i = 0; i < 3; i++) {
+            int bx = 280 + (i * 70);
+            g.setColor(typeColors[i]);
+            g.fillRect(bx, 580, 60, 40); // 60x40 버튼
+            g.setColor(Color.BLACK);
+            g.drawRect(bx, 580, 60, 40);
+
+            // 버튼 텍스트 (Lv 표시)
+            g.setFont(new Font("맑은 고딕", Font.BOLD, 13));
+            g.drawString(btnNames[i] + " Lv." + upgradeLevels[i], bx + 8, 605);
+        }
     }
 
     class Tile {
@@ -266,9 +355,12 @@ public class RandomTowerDefense extends JPanel implements ActionListener {
         boolean isBuildable, hasTower = false, isSelected = false;
         String towerType = "";
         Color color = null;
-        int tier = 0, cooldownTimer = 0;
+        int tier = 0, typeIndex = 0, cooldownTimer = 0;
         public Tile(int x, int y, boolean isBuildable) { this.x = x; this.y = y; this.isBuildable = isBuildable; }
-        public void setTower(String type, Color color, int tier) { this.hasTower = true; this.towerType = type; this.color = color; this.tier = tier; this.cooldownTimer = 0; }
+        public void setTower(String type, Color color, int tier, int typeIndex) {
+            this.hasTower = true; this.towerType = type; this.color = color;
+            this.tier = tier; this.typeIndex = typeIndex; this.cooldownTimer = 0;
+        }
         public void clearTower() { this.hasTower = false; this.towerType = ""; this.color = null; this.tier = 0; this.isSelected = false; }
     }
 
@@ -286,7 +378,7 @@ public class RandomTowerDefense extends JPanel implements ActionListener {
             int targetX = waypoints[targetWaypoint][0], targetY = waypoints[targetWaypoint][1];
             double speed = 4.0;
             double dx = targetX - x, dy = targetY - y;
-            double distance = Math.sqrt(dx * dx + dy * dy);
+            double distance = Math.hypot(dx, dy);
             if (distance <= speed) targetWaypoint++;
             else { x += (dx / distance) * speed; y += (dy / distance) * speed; }
             return true;
@@ -303,7 +395,7 @@ public class RandomTowerDefense extends JPanel implements ActionListener {
     }
 
     public static void main(String[] args) {
-        JFrame frame = new JFrame("스타 랜타디 - 자동 웨이브 시스템");
+        JFrame frame = new JFrame("스타 랜타디 - UI 및 업그레이드");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.add(new RandomTowerDefense());
         frame.pack();
