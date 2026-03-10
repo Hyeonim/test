@@ -8,7 +8,7 @@ public class test {
     public static void main(String[] args)
     {
 
-        String  a ="1";
+        String  a ="s";
 
         System.out.println(a);
     }
