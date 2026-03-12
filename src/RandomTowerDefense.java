@@ -8,14 +8,15 @@ import java.util.Random;
 
 public class RandomTowerDefense extends JPanel implements ActionListener {
     private int life = 20;
-    private int gold = 150;
+    // ★ 초기 자본금 100원으로 너프
+    private int gold = 100;
 
     private int wave = 1;
-    private int waveTimer = 1000; // 40마리가 다 나올 수 있도록 웨이브 시간을 길게 늘림
-    private int spawnCooldown = 15; // 몬스터 간격
+    private int waveTimer = 1000;
+    private int spawnCooldown = 15;
     private int spawnedThisWave = 0;
     private final int MAX_FIELD_MONSTERS = 100;
-    private final int MOBS_PER_WAVE = 40; // 한 웨이브당 40마리 픽스
+    private final int MOBS_PER_WAVE = 40;
 
     private int currentSpeed = 1;
 
@@ -182,42 +183,51 @@ public class RandomTowerDefense extends JPanel implements ActionListener {
                 selectedTile = null;
             } else {
                 if (selectedTile.tier == tile.tier) {
-                    if (selectedTile.tier < 3 && selectedTile.towerType.equals(tile.towerType)) {
+                    // ★ 1성->2성, 2성->3성, 3성->4성 확정 진화 (같은 속성끼리)
+                    if (selectedTile.tier < 4 && selectedTile.towerType.equals(tile.towerType)) {
                         int newTier = tile.tier + 1;
                         int rIndex = random.nextInt(types.length);
                         tile.setTower(types[rIndex], typeColors[rIndex], newTier, rIndex);
                         selectedTile.clearTower();
                     }
-                    else if (selectedTile.tier == 3) {
-                        int newTier = 4;
-
+                    // ★ 4성->히든(5성) 도박 (속성 상관없이 합치기 가능)
+                    else if (selectedTile.tier == 4) {
                         if (random.nextInt(100) < 20) {
+                            // 20% 성공!
+                            int newTier = 5; // 히든은 5성 처리
                             int rIndex = random.nextInt(hiddenTypes.length);
                             tile.setTower(hiddenTypes[rIndex], hiddenColors[rIndex], newTier, -1);
+                            System.out.println("★★★ 20% 확률 성공! 히든 타워 강림! ★★★");
                         } else {
-                            int rIndex = random.nextInt(types.length);
-                            tile.setTower(types[rIndex], typeColors[rIndex], newTier, rIndex);
+                            // ★ 80% 실패! 두 타워 모두 파괴
+                            tile.clearTower();
+                            System.out.println("앗.. 가챠 실패. 4성 타워 두 개가 파괴되었습니다 ㅠㅠ");
                         }
                         selectedTile.clearTower();
                     }
                 }
 
+                // 파괴되었을 경우를 대비한 선택 해제 안전장치
                 if (selectedTile != null) selectedTile.isSelected = false;
-                selectedTile = tile;
-                tile.isSelected = true;
+
+                if (tile.hasTower) {
+                    selectedTile = tile;
+                    tile.isSelected = true;
+                } else {
+                    selectedTile = null; // 타워가 날아갔으면 선택도 해제
+                }
             }
         }
     }
 
-    // ★ 단일 속성 고정 스폰 & 몹 체력 상향 로직
     private void spawnMonster() {
-        int typeIndex = (wave - 1) % types.length; // 1웨이브=불, 2웨이브=물, 3웨이브=풀 고정!
-        int maxHp = 200 + ((wave - 1) * 150); // 체력 상승폭 대폭 증가
+        int typeIndex = (wave - 1) % types.length;
+        int maxHp = 200 + ((wave - 1) * 150);
         monsters.add(new Monster(types[typeIndex], typeColors[typeIndex], maxHp, false));
     }
 
     private void spawnBoss() {
-        int maxHp = (200 + ((wave - 1) * 150)) * 20; // 일반몹의 20배 체력
+        int maxHp = (200 + ((wave - 1) * 150)) * 20;
         monsters.add(new Monster("무속성", Color.MAGENTA, maxHp, true));
     }
 
@@ -229,16 +239,15 @@ public class RandomTowerDefense extends JPanel implements ActionListener {
 
         if (waveTimer <= 0) {
             wave++;
-            waveTimer = 1000; // 웨이브 초기화
+            waveTimer = 1000;
             spawnedThisWave = 0;
             spawnCooldown = 15;
         }
 
         boolean isBossWave = (wave % 10 == 0);
 
-        // ★ 정확히 40마리만 스폰시키는 로직
         if (isBossWave) {
-            if (spawnedThisWave < 1) { // 보스는 1마리
+            if (spawnedThisWave < 1) {
                 spawnCooldown--;
                 if (spawnCooldown <= 0) {
                     spawnBoss();
@@ -247,7 +256,7 @@ public class RandomTowerDefense extends JPanel implements ActionListener {
                 }
             }
         } else {
-            if (spawnedThisWave < MOBS_PER_WAVE) { // 일반몹은 40마리
+            if (spawnedThisWave < MOBS_PER_WAVE) {
                 spawnCooldown--;
                 if (spawnCooldown <= 0) {
                     spawnMonster();
@@ -285,10 +294,10 @@ public class RandomTowerDefense extends JPanel implements ActionListener {
                             double multiplier = 1.0;
 
                             if (t.typeIndex == -1) {
-                                // ★ 히든 타워 너프 적용 (500 + 업글당 100)
                                 baseDamage = 500 + (hiddenUpgradeLevel * 100);
                                 multiplier = 1.5;
                             } else {
+                                // 1~4성 일반 타워 데미지
                                 baseDamage = (t.tier * 20) + (upgradeLevels[t.typeIndex] * 30 * t.tier);
                                 if (!target.element.equals("무속성")) {
                                     if (t.towerType.equals("불") && target.element.equals("풀")) multiplier = 1.5;
@@ -341,7 +350,6 @@ public class RandomTowerDefense extends JPanel implements ActionListener {
         g.setFont(new Font("맑은 고딕", Font.BOLD, 14));
         boolean isBossWave = (wave % 10 == 0);
 
-        // ★ 스폰 상태 텍스트 직관성 강화
         String spawnText = "";
         if (isBossWave) {
             spawnText = (spawnedThisWave < 1) ? "보스 출현!" : "보스 처치 중!";
@@ -464,7 +472,6 @@ public class RandomTowerDefense extends JPanel implements ActionListener {
 
         if (selectedTile != null && selectedTile.hasTower) {
             if (selectedTile.typeIndex == -1) {
-                // 히든 타워 너프 적용
                 int currentAtk = 500 + (hiddenUpgradeLevel * 100);
                 int currentRange = 200 + (hiddenUpgradeLevel * 20);
                 g.setColor(Color.YELLOW);
@@ -591,7 +598,7 @@ public class RandomTowerDefense extends JPanel implements ActionListener {
     }
 
     public static void main(String[] args) {
-        JFrame frame = new JFrame("스타 랜타디 - 정규 웨이브 시스템");
+        JFrame frame = new JFrame("스타 랜타디 - 극악의 가챠 확률 맵");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.add(new RandomTowerDefense());
         frame.pack();
