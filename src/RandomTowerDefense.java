@@ -477,6 +477,8 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         boolean isBossWave = (wave % 10 == 0);
+        float waveProgress = Math.max(0f, Math.min(1f, (600 - waveTimer) / 600f));
+        float lifeRatio = Math.max(0f, Math.min(1f, life / 20f));
 
         String spawnText = (waveTimer > 200)
                 ? (isBossWave ? "보스 출현!" : String.format("스폰 간격: %.1f초", spawnCooldown / 20.0))
@@ -484,6 +486,13 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
 
         g2.setPaint(new GradientPaint(0, 0, new Color(22, 28, 40), 0, getHeight(), new Color(11, 15, 24)));
         g2.fillRect(0, 0, getWidth(), getHeight());
+
+        g2.setColor(new Color(255, 255, 255, 10));
+        for (int i = 0; i < 32; i++) {
+            int sx = (i * 67 + 23) % getWidth();
+            int sy = (i * 37 + 40) % 590;
+            g2.fillOval(sx, sy, 2, 2);
+        }
 
         g2.setColor(new Color(18, 24, 36));
         g2.fillRoundRect(8, 8, 524, 38, 16, 16);
@@ -507,26 +516,78 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
             g2.drawString("GAME OVER", 200, 35);
         }
 
+        g2.setColor(new Color(28, 38, 54));
+        g2.fillRoundRect(8, 47, 524, 13, 8, 8);
+        g2.setColor(new Color(66, 82, 108));
+        g2.drawRoundRect(8, 47, 524, 13, 8, 8);
+        g2.setPaint(new GradientPaint(8, 47, new Color(90, 170, 255), 532, 60, new Color(118, 244, 186)));
+        g2.fillRoundRect(8, 47, (int) (524 * waveProgress), 13, 8, 8);
+
+        g2.setColor(new Color(18, 24, 36));
+        g2.fillRoundRect(10, 63, 160, 20, 10, 10);
+        g2.setColor(new Color(66, 82, 108));
+        g2.drawRoundRect(10, 63, 160, 20, 10, 10);
+        g2.setColor(new Color(56, 76, 100));
+        g2.fillRoundRect(70, 68, 92, 10, 6, 6);
+        g2.setColor(life <= 5 ? new Color(255, 88, 88) : new Color(104, 232, 132));
+        g2.fillRoundRect(70, 68, (int) (92 * lifeRatio), 10, 6, 6);
+        g2.setFont(new Font("맑은 고딕", Font.BOLD, 12));
+        g2.setColor(new Color(236, 241, 250));
+        g2.drawString("라이프", 20, 78);
+        g2.drawString(life + " / 20", 102, 78);
+
+        g2.setColor(new Color(18, 24, 36));
+        g2.fillRoundRect(176, 63, 150, 20, 10, 10);
+        g2.setColor(new Color(66, 82, 108));
+        g2.drawRoundRect(176, 63, 150, 20, 10, 10);
+        g2.setColor(new Color(255, 203, 79));
+        g2.fillOval(186, 68, 10, 10);
+        g2.setColor(new Color(236, 241, 250));
+        g2.drawString("골드 " + gold, 203, 78);
+
         g2.setColor(currentSpeed == 1 ? new Color(77, 93, 112) : new Color(228, 79, 79));
         g2.fillRoundRect(450, 10, 70, 30, 12, 12);
         g2.setColor(new Color(235, 240, 250));
         g2.drawRoundRect(450, 10, 70, 30, 12, 12);
         g2.setFont(new Font("맑은 고딕", Font.BOLD, 14));
-        g2.drawString("▶ x" + currentSpeed, 466, 31);
+        g2.drawString("속도 x" + currentSpeed, 456, 31);
+
+        g2.setColor(isBossWave && waveTimer > 200
+                ? new Color(255, 130, 230, 160)
+                : new Color(77, 98, 128, 160));
+        g2.setStroke(new BasicStroke(8f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        for (int i = 0; i < waypoints.length - 1; i++) {
+            g2.drawLine(waypoints[i][0], waypoints[i][1], waypoints[i + 1][0], waypoints[i + 1][1]);
+        }
 
         for (int y = 0; y < GRID_SIZE; y++) {
             for (int x = 0; x < GRID_SIZE; x++) {
                 int drawY = y * TILE_SIZE + 50;
-                g2.setColor(tileBuildable[y][x] ? new Color(76, 92, 108) : new Color(31, 38, 48));
+                g2.setColor(tileBuildable[y][x] ? new Color(73, 96, 120) : new Color(28, 36, 48));
                 g2.fillRoundRect(x * TILE_SIZE + 1, drawY + 1, TILE_SIZE - 2, TILE_SIZE - 2, 8, 8);
                 g2.setColor(new Color(15, 20, 30));
                 g2.drawRoundRect(x * TILE_SIZE + 1, drawY + 1, TILE_SIZE - 2, TILE_SIZE - 2, 8, 8);
 
+                if (tileBuildable[y][x]) {
+                    g2.setColor(new Color(180, 210, 250, 16));
+                    g2.drawLine(x * TILE_SIZE + 8, drawY + 10, x * TILE_SIZE + 36, drawY + 10);
+                } else {
+                    g2.setColor(new Color(255, 120, 170, 35));
+                    g2.drawLine(x * TILE_SIZE + 8, drawY + 35, x * TILE_SIZE + 36, drawY + 35);
+                }
+
                 if (tileHasTower[y][x]) {
-                    g2.setColor(tileColor[y][x]);
+                    g2.setColor(new Color(20, 28, 40));
                     g2.fillRoundRect(x * TILE_SIZE + 6, y * TILE_SIZE + 56, 33, 33, 10, 10);
-                    g2.setColor(new Color(12, 12, 12));
+                    g2.setColor(new Color(120, 140, 170));
                     g2.drawRoundRect(x * TILE_SIZE + 6, y * TILE_SIZE + 56, 33, 33, 10, 10);
+
+                    drawTowerCharacter(g2, x * TILE_SIZE + 6, y * TILE_SIZE + 56, tileTowerType[y][x], tileColor[y][x], tileTier[y][x]);
+
+                    if (tileTier[y][x] >= 3) {
+                        g2.setColor(new Color(255, 235, 150, 70));
+                        g2.fillOval(x * TILE_SIZE + 2, y * TILE_SIZE + 52, 41, 41);
+                    }
 
                     if (tileTier[y][x] == 4) {
                         g2.setColor(new Color(255, 229, 123));
@@ -556,20 +617,11 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
         }
 
         for (Object[] m : monsters) {
-            g2.setColor((Color) m[M_COLOR]);
             int drawX = (int) ((double) m[M_X] - (double) m[M_RADIUS]);
             int drawY = (int) ((double) m[M_Y] - (double) m[M_RADIUS]);
             int size = (int) ((double) m[M_RADIUS] * 2);
             boolean isBoss = (boolean) m[M_BOSS];
-
-            if (isBoss) {
-                g2.fillRoundRect(drawX, drawY, size, size, 6, 6);
-                g2.setColor(Color.WHITE);
-                g2.setFont(new Font("맑은 고딕", Font.BOLD, 12));
-                g2.drawString("BOSS", drawX + 3, drawY + 23);
-            } else {
-                g2.fillOval(drawX, drawY, size, size);
-            }
+            drawMonsterCharacter(g2, m, drawX, drawY, size);
 
             if (m == selectedMonster) {
                 g2.setColor(new Color(255, 240, 140));
@@ -590,7 +642,7 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
 
         for (Object[] l : lasers) {
             g2.setColor((Color) l[L_COLOR]);
-            g2.setStroke(new BasicStroke((boolean) l[L_HEAVY] ? 6 : 3));
+            g2.setStroke(new BasicStroke((boolean) l[L_HEAVY] ? 7 : 3, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
             g2.drawLine((int) l[L_START_X], (int) l[L_START_Y], (int) l[L_END_X], (int) l[L_END_Y]);
         }
 
@@ -606,6 +658,8 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
         g2.setColor(new Color(235, 240, 250));
         g2.setFont(new Font("맑은 고딕", Font.BOLD, 13));
         g2.drawString("설치 비용: 10 골드", 20, 615);
+        g2.setColor(new Color(170, 182, 201));
+        g2.drawString("같은 등급+속성 타워를 합치면 강화됩니다", 20, 633);
 
         if (hasSelectedTile() && tileHasTower[selectedTileY][selectedTileX]) {
             if (tileTier[selectedTileY][selectedTileX] == 4) {
@@ -663,6 +717,7 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
             g2.drawRoundRect(bx, 630, 60, 40, 10, 10);
 
             g2.setFont(new Font("맑은 고딕", Font.BOLD, 12));
+            g2.setColor(new Color(22, 22, 22));
             g2.drawString(btnNames[i] + " Lv." + upgradeLevels[i], bx + 8, 655);
         }
 
@@ -672,9 +727,100 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
         g2.setColor(Color.WHITE);
         g2.drawRoundRect(hbx, 630, 60, 40, 10, 10);
         g2.setFont(new Font("맑은 고딕", Font.BOLD, 11));
-        g2.drawString("히든Lv." + hiddenUpgradeLevel, hbx + 5, 655);
+        g2.drawString("히든Lv." + hiddenUpgradeLevel, hbx + 5, 650);
+        g2.setFont(new Font("맑은 고딕", Font.PLAIN, 10));
+        g2.drawString("비용 50", hbx + 15, 664);
 
         g2.dispose();
+    }
+
+    private void drawTowerCharacter(Graphics2D g2, int x, int y, String towerType, Color color, int tier) {
+        g2.setColor(new Color(255, 255, 255, 30));
+        g2.fillOval(x + 8, y + 8, 18, 18);
+
+        if (towerType.startsWith("불")) {
+            int[] fx = {x + 16, x + 9, x + 14, x + 11, x + 22, x + 20, x + 24};
+            int[] fy = {y + 3, y + 16, y + 16, y + 25, y + 19, y + 29, y + 17};
+            g2.setColor(new Color(255, 130, 50));
+            g2.fillPolygon(fx, fy, fx.length);
+            g2.setColor(new Color(255, 220, 120));
+            g2.fillOval(x + 14, y + 13, 8, 10);
+        } else if (towerType.startsWith("물")) {
+            int[] dx = {x + 16, x + 9, x + 11, x + 16, x + 21, x + 23};
+            int[] dy = {y + 4, y + 15, y + 24, y + 29, y + 24, y + 15};
+            g2.setColor(new Color(105, 190, 255));
+            g2.fillPolygon(dx, dy, dx.length);
+            g2.setColor(new Color(190, 236, 255));
+            g2.fillOval(x + 14, y + 11, 5, 6);
+        } else if (towerType.startsWith("풀")) {
+            g2.setColor(new Color(94, 212, 116));
+            g2.fillOval(x + 8, y + 12, 10, 16);
+            g2.fillOval(x + 16, y + 10, 10, 16);
+            g2.setColor(new Color(60, 150, 78));
+            g2.drawLine(x + 16, y + 28, x + 16, y + 8);
+        } else if (towerType.startsWith("빛")) {
+            int[] sx = {x + 16, x + 20, x + 29, x + 22, x + 24, x + 16, x + 8, x + 10, x + 3, x + 12};
+            int[] sy = {y + 3, y + 12, y + 12, y + 18, y + 28, y + 22, y + 28, y + 18, y + 12, y + 12};
+            g2.setColor(new Color(255, 242, 150));
+            g2.fillPolygon(sx, sy, sx.length);
+        } else if (towerType.startsWith("어둠")) {
+            g2.setColor(new Color(145, 97, 222));
+            g2.fillOval(x + 8, y + 7, 18, 20);
+            g2.setColor(new Color(20, 28, 40));
+            g2.fillOval(x + 13, y + 7, 14, 20);
+        } else if (towerType.startsWith("혼돈")) {
+            g2.setColor(new Color(242, 90, 190));
+            g2.fillOval(x + 7, y + 9, 20, 16);
+            g2.setColor(new Color(33, 38, 60));
+            g2.fillOval(x + 12, y + 13, 10, 8);
+            g2.setColor(new Color(255, 255, 255));
+            g2.fillOval(x + 15, y + 15, 4, 4);
+        } else {
+            g2.setColor(color);
+            g2.fillOval(x + 9, y + 9, 16, 16);
+        }
+
+        g2.setColor(new Color(240, 245, 255));
+        g2.setFont(new Font("맑은 고딕", Font.BOLD, 10));
+        g2.drawString("Lv." + tier, x + 4, y + 32);
+    }
+
+    private void drawMonsterCharacter(Graphics2D g2, Object[] m, int drawX, int drawY, int size) {
+        boolean isBoss = (boolean) m[M_BOSS];
+        String element = (String) m[M_ELEMENT];
+        Color color = (Color) m[M_COLOR];
+
+        g2.setColor(color);
+        if (isBoss) g2.fillRoundRect(drawX, drawY, size, size, 10, 10);
+        else g2.fillOval(drawX, drawY, size, size);
+
+        g2.setColor(new Color(255, 255, 255, 45));
+        g2.fillOval(drawX + 4, drawY + 4, Math.max(5, size / 3), Math.max(5, size / 3));
+
+        g2.setColor(new Color(22, 24, 30));
+        int eyeY = drawY + size / 3;
+        g2.fillOval(drawX + size / 4, eyeY, 4, 4);
+        g2.fillOval(drawX + (size * 2 / 3) - 2, eyeY, 4, 4);
+        g2.drawArc(drawX + size / 3, drawY + size / 2, size / 3, size / 4, 200, 140);
+
+        if (element.equals("불")) {
+            g2.setColor(new Color(255, 190, 120));
+            g2.drawLine(drawX + size / 2, drawY - 2, drawX + size / 2 + 3, drawY + 4);
+        } else if (element.equals("물")) {
+            g2.setColor(new Color(188, 232, 255));
+            g2.fillOval(drawX + size / 2 - 2, drawY - 2, 4, 6);
+        } else if (element.equals("풀")) {
+            g2.setColor(new Color(146, 228, 140));
+            g2.drawLine(drawX + size / 2, drawY - 2, drawX + size / 2, drawY + 4);
+            g2.drawLine(drawX + size / 2, drawY + 1, drawX + size / 2 + 3, drawY + 3);
+        }
+
+        if (isBoss) {
+            g2.setColor(new Color(255, 224, 120));
+            int[] cx = {drawX + 4, drawX + 8, drawX + 12, drawX + 16, drawX + 20, drawX + 24, drawX + 28, drawX + 32};
+            int[] cy = {drawY + 1, drawY - 3, drawY + 1, drawY - 4, drawY + 1, drawY - 3, drawY + 1, drawY + 1};
+            g2.fillPolygon(cx, cy, cx.length);
+        }
     }
 
     public static void main(String[] args) {
