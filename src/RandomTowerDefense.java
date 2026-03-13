@@ -1,6 +1,15 @@
+
+import javax.imageio.ImageIO;
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
+import java.awt.geom.AffineTransform;
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -10,43 +19,54 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
     private static final int GRID_SIZE = 12;
     private static final int TILE_SIZE = 45;
 
-    private int life = 20;
-    private int gold = 150;
+    private static final int GRID_ORIGIN_X = 0;
+    private static final int GRID_ORIGIN_Y = 70;
+    private static final int TOP_PANEL_H = 58;
+    private static final int BOTTOM_PANEL_Y = 620;
+    private static final int PANEL_W = GRID_SIZE * TILE_SIZE;
+    private static final int PANEL_H = 760;
 
-    private int wave = 1;
-    private int waveTimer = 600;
-    private int spawnCooldown = 20;
-    private int spawnedThisWave = 0;
-    private final int MAX_FIELD_MONSTERS = 100;
+    private static final int TOWER_COST = 10;
+    private static final int UPGRADE_COST = 20;
+    private static final int HIDDEN_UPGRADE_COST = 50;
+    private static final int MAX_FIELD_MONSTERS = 100;
+    private static final int TOWER_SPRITE_SIZE = 33;
+    private static final double MONSTER_SCALE_NORMAL = 1.6;
+    private static final double MONSTER_SCALE_BOSS = 1.4;
 
-    private int currentSpeed = 1;
-
-    private final int[] upgradeLevels = {0, 0, 0};
-    private final int UPGRADE_COST = 20;
-
-    private int hiddenUpgradeLevel = 0;
-    private final int HIDDEN_UPGRADE_COST = 50;
-
-    private final int[][] mapGrid = {
-            { 0, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0 },
-            { 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0 },
-            { 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0 },
-            { 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0 },
-            { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
-            { 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1 },
-            { 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1 },
-            { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
-            { 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0 },
-            { 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0 },
-            { 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0 },
-            { 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0 }
+    private static final String[] ELEMENTS = {"Fire", "Water", "Nature"};
+    private static final String[] ELEMENT_LABELS = {
+            "\uD654\uC5FC",
+            "\uBB3C",
+            "\uC790\uC5F0"
+    };
+    private static final Color[] ELEMENT_COLORS = {
+            new Color(255, 114, 90),
+            new Color(91, 160, 255),
+            new Color(98, 216, 121)
     };
 
-    private final String[] types = {"불", "물", "풀"};
-    private final Color[] typeColors = {new Color(255, 100, 100), new Color(100, 150, 255), new Color(100, 255, 100)};
+    private static final String[] HIDDEN_ELEMENTS = {"Arcane", "Shadow", "Chaos"};
+    private static final Color[] HIDDEN_COLORS = {
+            new Color(255, 232, 130),
+            new Color(115, 95, 210),
+            new Color(255, 94, 193)
+    };
 
-    private final String[] hiddenTypes = {"빛(히든)", "어둠(히든)", "혼돈(히든)"};
-    private final Color[] hiddenColors = {Color.WHITE, new Color(80, 80, 80), Color.MAGENTA};
+    private final int[][] mapGrid = {
+            {0, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0},
+            {0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0},
+            {0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0},
+            {0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0},
+            {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+            {1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1},
+            {1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1},
+            {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+            {0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0},
+            {0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0},
+            {0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0},
+            {0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0}
+    };
 
     private final boolean[][] tileBuildable = new boolean[GRID_SIZE][GRID_SIZE];
     private final boolean[][] tileHasTower = new boolean[GRID_SIZE][GRID_SIZE];
@@ -57,15 +77,50 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
     private final int[][] tileTypeIndex = new int[GRID_SIZE][GRID_SIZE];
     private final int[][] tileCooldown = new int[GRID_SIZE][GRID_SIZE];
 
+    private final List<Object[]> monsters = new ArrayList<>();
+    private final List<Object[]> lasers = new ArrayList<>();
+    private final Random random = new Random();
+
+    private final int[] upgradeLevels = {0, 0, 0};
+    private int hiddenUpgradeLevel = 0;
+
+    private int life = 20;
+    private int gold = 150;
+    private int wave = 1;
+    private int waveTimer = 600;
+    private int spawnCooldown = 20;
+    private int spawnedThisWave = 0;
+    private int currentSpeed = 1;
+    private int tick = 0;
+
     private int selectedTileX = -1;
     private int selectedTileY = -1;
     private Object[] selectedMonster = null;
 
-    private final List<Object[]> monsters = new ArrayList<>();
-    private final List<Object[]> lasers = new ArrayList<>();
+    private final int[][] gridWaypoints = {
+            {0, 0}, {0, 4}, {11, 4}, {11, 0}, {6, 0}, {6, 11},
+            {11, 11}, {11, 7}, {0, 7}, {0, 11}, {3, 11}, {3, 0}
+    };
+    private final int[][] waypoints = new int[12][2];
+
+    private final Rectangle speedButton = new Rectangle(448, 12, 78, 30);
+    private final Rectangle sellButton = new Rectangle(172, 656, 70, 34);
+    private final Rectangle[] upgradeButtons = {
+            new Rectangle(264, 664, 60, 40),
+            new Rectangle(330, 664, 60, 40),
+            new Rectangle(396, 664, 60, 40),
+            new Rectangle(462, 664, 66, 40)
+    };
+
+    private BufferedImage bgTexture;
+    private BufferedImage buildTileTexture;
+    private BufferedImage pathStraightTexture;
+    private BufferedImage pathCurveTexture;
+    private BufferedImage pathCrossTexture;
+    private final BufferedImage[] towerSprites = new BufferedImage[6];
+    private final BufferedImage[] monsterSprites = new BufferedImage[4];
 
     private Timer gameLoop;
-    private final Random random = new Random();
 
     private static final int M_X = 0;
     private static final int M_Y = 1;
@@ -85,15 +140,10 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
     private static final int L_COLOR = 5;
     private static final int L_HEAVY = 6;
 
-    private final int[][] gridWaypoints = {
-            {0, 0}, {0, 4}, {11, 4}, {11, 0}, {6, 0}, {6, 11},
-            {11, 11}, {11, 7}, {0, 7}, {0, 11}, {3, 11}, {3, 0}
-    };
-    private final int[][] waypoints = new int[12][2];
-
     public RandomTowerDefense() {
-        setPreferredSize(new Dimension(540, 720));
-        setBackground(Color.DARK_GRAY);
+        setPreferredSize(new Dimension(PANEL_W, PANEL_H));
+        setBackground(new Color(13, 18, 28));
+        setDoubleBuffered(true);
 
         for (int y = 0; y < GRID_SIZE; y++) {
             for (int x = 0; x < GRID_SIZE; x++) {
@@ -102,15 +152,130 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
             }
         }
 
-        for (int i = 0; i < 12; i++) {
-            waypoints[i][0] = gridWaypoints[i][0] * TILE_SIZE + (TILE_SIZE / 2);
-            waypoints[i][1] = gridWaypoints[i][1] * TILE_SIZE + (TILE_SIZE / 2) + 50;
+        for (int i = 0; i < waypoints.length; i++) {
+            waypoints[i][0] = gridWaypoints[i][0] * TILE_SIZE + (TILE_SIZE / 2) + GRID_ORIGIN_X;
+            waypoints[i][1] = gridWaypoints[i][1] * TILE_SIZE + (TILE_SIZE / 2) + GRID_ORIGIN_Y;
         }
 
+        loadAssets();
         addMouseListener(this);
 
         gameLoop = new Timer(50, this);
         gameLoop.start();
+    }
+
+    private void loadAssets() {
+        bgTexture = loadImage("assets/ui/background.png");
+        buildTileTexture = loadImage("assets/ui/build_tile.png");
+        pathStraightTexture = loadImage("assets/ui/path_tile/path_tile.png");
+        pathCurveTexture = loadImage("assets/ui/path_tile/curve_path_tile.png");
+        pathCrossTexture = loadImage("assets/ui/path_tile/cross_path_tile.png");
+
+        if (pathStraightTexture == null) pathStraightTexture = loadImage("assets/ui/path_tile.png");
+
+        towerSprites[0] = loadImage("assets/towers/fire.png");
+        towerSprites[1] = loadImage("assets/towers/water.png");
+        towerSprites[2] = loadImage("assets/towers/nature.png");
+        towerSprites[3] = loadImage("assets/towers/arcane.png");
+        towerSprites[4] = loadImage("assets/towers/shadow.png");
+        towerSprites[5] = loadImage("assets/towers/chaos.png");
+
+        monsterSprites[0] = loadImage("assets/monsters/fire.png");
+        monsterSprites[1] = loadImage("assets/monsters/water.png");
+        monsterSprites[2] = loadImage("assets/monsters/nature.png");
+        monsterSprites[3] = loadImage("assets/monsters/boss.png");
+
+        if (buildTileTexture == null) buildTileTexture = makeTileTexture(new Color(78, 112, 136), new Color(96, 132, 160));
+        if (pathStraightTexture == null) pathStraightTexture = makeTileTexture(new Color(38, 49, 64), new Color(31, 40, 54));
+        if (pathCurveTexture == null) pathCurveTexture = pathStraightTexture;
+        if (pathCrossTexture == null) pathCrossTexture = pathStraightTexture;
+
+        buildTileTexture = trimTransparentBounds(buildTileTexture);
+        pathStraightTexture = trimTransparentBounds(pathStraightTexture);
+        pathCurveTexture = trimTransparentBounds(pathCurveTexture);
+        pathCrossTexture = trimTransparentBounds(pathCrossTexture);
+
+        buildTileTexture = fitToTileSize(buildTileTexture);
+        pathStraightTexture = fitToTileSize(pathStraightTexture);
+        pathCurveTexture = fitToTileSize(pathCurveTexture);
+        pathCrossTexture = fitToTileSize(pathCrossTexture);
+    }
+
+    private BufferedImage loadImage(String relativePath) {
+        File file = resolveAssetPath(relativePath);
+        if (file == null) return null;
+        try {
+            return ImageIO.read(file);
+        } catch (IOException ignored) {
+            return null;
+        }
+    }
+
+    private File resolveAssetPath(String relativePath) {
+        File direct = new File(relativePath);
+        if (direct.exists()) return direct;
+
+        File cwd = new File(System.getProperty("user.dir"));
+        File current = cwd;
+        for (int i = 0; i < 6 && current != null; i++) {
+            File candidate = new File(current, relativePath);
+            if (candidate.exists()) return candidate;
+            current = current.getParentFile();
+        }
+        return null;
+    }
+
+    private BufferedImage fitToTileSize(BufferedImage src) {
+        if (src == null) return null;
+        if (src.getWidth() == TILE_SIZE && src.getHeight() == TILE_SIZE) return src;
+
+        BufferedImage scaled = new BufferedImage(TILE_SIZE, TILE_SIZE, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = scaled.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        double scale = Math.max(TILE_SIZE / (double) src.getWidth(), TILE_SIZE / (double) src.getHeight());
+        int drawW = (int) Math.ceil(src.getWidth() * scale);
+        int drawH = (int) Math.ceil(src.getHeight() * scale);
+        int drawX = (TILE_SIZE - drawW) / 2;
+        int drawY = (TILE_SIZE - drawH) / 2;
+        g.drawImage(src, drawX, drawY, drawW, drawH, null);
+        g.dispose();
+        return scaled;
+    }
+
+    private BufferedImage trimTransparentBounds(BufferedImage src) {
+        if (src == null) return null;
+        int w = src.getWidth();
+        int h = src.getHeight();
+        int minX = w, minY = h, maxX = -1, maxY = -1;
+
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                int a = (src.getRGB(x, y) >>> 24) & 0xFF;
+                if (a > 8) {
+                    if (x < minX) minX = x;
+                    if (y < minY) minY = y;
+                    if (x > maxX) maxX = x;
+                    if (y > maxY) maxY = y;
+                }
+            }
+        }
+
+        if (maxX < minX || maxY < minY) return src;
+        if (minX == 0 && minY == 0 && maxX == w - 1 && maxY == h - 1) return src;
+        return src.getSubimage(minX, minY, (maxX - minX) + 1, (maxY - minY) + 1);
+    }
+
+    private BufferedImage makeTileTexture(Color c1, Color c2) {
+        BufferedImage img = new BufferedImage(TILE_SIZE, TILE_SIZE, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = img.createGraphics();
+        g.setPaint(new GradientPaint(0, 0, c1, TILE_SIZE, TILE_SIZE, c2));
+        g.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+        g.setColor(new Color(255, 255, 255, 16));
+        for (int i = 0; i < 4; i++) {
+            g.drawLine(0, i * 11 + 4, TILE_SIZE, i * 11 + 4);
+        }
+        g.dispose();
+        return img;
     }
 
     @Override
@@ -118,34 +283,32 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
         int mouseX = e.getX();
         int mouseY = e.getY();
 
-        if (mouseY >= 10 && mouseY <= 40 && mouseX >= 450 && mouseX <= 520) {
+        if (speedButton.contains(mouseX, mouseY)) {
             currentSpeed++;
             if (currentSpeed > 3) currentSpeed = 1;
-
             if (currentSpeed == 1) gameLoop.setDelay(50);
             else if (currentSpeed == 2) gameLoop.setDelay(25);
             else gameLoop.setDelay(16);
-
             repaint();
             return;
         }
 
-        if (mouseY >= 590) {
-            if (hasSelectedTile() && tileHasTower[selectedTileY][selectedTileX]) {
-                if (mouseX >= 180 && mouseX <= 240 && mouseY >= 640 && mouseY <= 670) {
-                    gold += tileTier[selectedTileY][selectedTileX] * 5;
-                    clearTile(selectedTileX, selectedTileY);
-                    clearSelectedTile();
+        if (mouseY >= BOTTOM_PANEL_Y) {
+            if (hasSelectedTile() && tileHasTower[selectedTileY][selectedTileX] && sellButton.contains(mouseX, mouseY)) {
+                gold += tileTier[selectedTileY][selectedTileX] * 5;
+                clearTile(selectedTileX, selectedTileY);
+                clearSelectedTile();
+                repaint();
+                return;
+            }
+
+            for (int i = 0; i < upgradeButtons.length; i++) {
+                if (upgradeButtons[i].contains(mouseX, mouseY)) {
+                    if (i == 3) doHiddenUpgrade();
+                    else doUpgrade(i);
                     repaint();
                     return;
                 }
-            }
-
-            if (mouseY >= 630 && mouseY <= 670) {
-                if (mouseX >= 265 && mouseX <= 325) doUpgrade(0);
-                else if (mouseX >= 330 && mouseX <= 390) doUpgrade(1);
-                else if (mouseX >= 395 && mouseX <= 455) doUpgrade(2);
-                else if (mouseX >= 460 && mouseX <= 520) doHiddenUpgrade();
             }
             return;
         }
@@ -156,7 +319,7 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
             double mx = (double) m[M_X];
             double my = (double) m[M_Y];
             double radius = (double) m[M_RADIUS];
-            if (Math.hypot(mx - mouseX, my - mouseY) <= radius + 5) {
+            if (Math.hypot(mx - mouseX, my - mouseY) <= radius + 6) {
                 selectedMonster = m;
                 clearSelectedTile();
                 clickedMonster = true;
@@ -164,10 +327,9 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
             }
         }
 
-        if (!clickedMonster && mouseY >= 50 && mouseY < 590) {
-            int gridX = mouseX / TILE_SIZE;
-            int gridY = (mouseY - 50) / TILE_SIZE;
-
+        if (!clickedMonster && mouseY >= GRID_ORIGIN_Y && mouseY < GRID_ORIGIN_Y + GRID_SIZE * TILE_SIZE) {
+            int gridX = (mouseX - GRID_ORIGIN_X) / TILE_SIZE;
+            int gridY = (mouseY - GRID_ORIGIN_Y) / TILE_SIZE;
             selectedMonster = null;
             if (gridX >= 0 && gridX < GRID_SIZE && gridY >= 0 && gridY < GRID_SIZE) {
                 handleTileClick(gridX, gridY);
@@ -179,25 +341,27 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
     }
 
     @Override
-    public void mouseClicked(MouseEvent e) { }
+    public void mouseClicked(MouseEvent e) {
+    }
 
     @Override
-    public void mouseReleased(MouseEvent e) { }
+    public void mouseReleased(MouseEvent e) {
+    }
 
     @Override
-    public void mouseEntered(MouseEvent e) { }
+    public void mouseEntered(MouseEvent e) {
+    }
 
     @Override
-    public void mouseExited(MouseEvent e) { }
+    public void mouseExited(MouseEvent e) {
+    }
 
     private boolean hasSelectedTile() {
         return selectedTileX >= 0 && selectedTileY >= 0;
     }
 
     private void clearSelectedTile() {
-        if (hasSelectedTile()) {
-            tileSelected[selectedTileY][selectedTileX] = false;
-        }
+        if (hasSelectedTile()) tileSelected[selectedTileY][selectedTileX] = false;
         selectedTileX = -1;
         selectedTileY = -1;
     }
@@ -233,7 +397,6 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
             gold -= UPGRADE_COST;
             upgradeLevels[typeIndex]++;
         }
-        repaint();
     }
 
     private void doHiddenUpgrade() {
@@ -241,7 +404,6 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
             gold -= HIDDEN_UPGRADE_COST;
             hiddenUpgradeLevel++;
         }
-        repaint();
     }
 
     private void handleTileClick(int x, int y) {
@@ -253,10 +415,10 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
         if (!tileHasTower[y][x]) {
             if (hasSelectedTile()) {
                 clearSelectedTile();
-            } else if (gold >= 10) {
-                gold -= 10;
-                int typeIndex = random.nextInt(types.length);
-                setTower(x, y, types[typeIndex], typeColors[typeIndex], 1, typeIndex);
+            } else if (gold >= TOWER_COST) {
+                gold -= TOWER_COST;
+                int typeIndex = random.nextInt(ELEMENTS.length);
+                setTower(x, y, ELEMENTS[typeIndex], ELEMENT_COLORS[typeIndex], 1, typeIndex);
             }
             return;
         }
@@ -273,20 +435,18 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
 
         int sx = selectedTileX;
         int sy = selectedTileY;
-
         if (tileTier[sy][sx] == tileTier[y][x]) {
             if (tileTier[sy][sx] < 3 && tileTowerType[sy][sx].equals(tileTowerType[y][x])) {
                 int newTier = tileTier[y][x] + 1;
-                int rIndex = random.nextInt(types.length);
-                setTower(x, y, types[rIndex], typeColors[rIndex], newTier, rIndex);
+                int rIndex = random.nextInt(ELEMENTS.length);
+                setTower(x, y, ELEMENTS[rIndex], ELEMENT_COLORS[rIndex], newTier, rIndex);
                 clearTile(sx, sy);
             } else if (tileTier[sy][sx] == 3) {
-                int rIndex = random.nextInt(hiddenTypes.length);
-                setTower(x, y, hiddenTypes[rIndex], hiddenColors[rIndex], 4, -1);
+                int rIndex = random.nextInt(HIDDEN_ELEMENTS.length);
+                setTower(x, y, HIDDEN_ELEMENTS[rIndex], HIDDEN_COLORS[rIndex], 4, -1);
                 clearTile(sx, sy);
             }
         }
-
         selectTile(x, y);
     }
 
@@ -305,14 +465,14 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
     }
 
     private void spawnMonster() {
-        int typeIndex = random.nextInt(types.length);
+        int idx = random.nextInt(ELEMENTS.length);
         int maxHp = 100 + ((wave - 1) * 80);
-        monsters.add(createMonster(types[typeIndex], typeColors[typeIndex], maxHp, false));
+        monsters.add(createMonster(ELEMENTS[idx], ELEMENT_COLORS[idx], maxHp, false));
     }
 
     private void spawnBoss() {
         int maxHp = (100 + ((wave - 1) * 80)) * 25;
-        monsters.add(createMonster("무속성", Color.MAGENTA, maxHp, true));
+        monsters.add(createMonster("Boss", new Color(225, 90, 255), maxHp, true));
     }
 
     private boolean moveMonster(Object[] m) {
@@ -337,24 +497,23 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
             m[M_X] = centerX + (dx / distance) * speed;
             m[M_Y] = centerY + (dy / distance) * speed;
         }
-
         return true;
     }
 
     @Override
     public void actionPerformed(ActionEvent e) {
         if (life <= 0) return;
-
+        tick++;
         waveTimer--;
 
         if (waveTimer <= 0) {
             wave++;
             waveTimer = 600;
             spawnedThisWave = 0;
+            spawnCooldown = 20;
         }
 
         boolean isBossWave = (wave % 10 == 0);
-
         if (waveTimer > 200) {
             spawnCooldown--;
             if (spawnCooldown <= 0) {
@@ -378,7 +537,6 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
             Object[] m = mobIter.next();
             int hp = (int) m[M_HP];
             boolean isBoss = (boolean) m[M_BOSS];
-
             if (hp <= 0) {
                 gold += isBoss ? 50 : 5;
                 if (selectedMonster == m) selectedMonster = null;
@@ -393,7 +551,6 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
         for (int y = 0; y < GRID_SIZE; y++) {
             for (int x = 0; x < GRID_SIZE; x++) {
                 if (!tileHasTower[y][x]) continue;
-
                 if (tileCooldown[y][x] > 0) {
                     tileCooldown[y][x]--;
                     continue;
@@ -402,36 +559,26 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
                 Object[] target = findClosestMonster(x, y);
                 if (target == null) continue;
 
-                int baseDamage;
-                double multiplier = 1.0;
                 int tier = tileTier[y][x];
+                int damage;
+                double multiplier = 1.0;
 
                 if (tier == 4) {
-                    baseDamage = 800 + (hiddenUpgradeLevel * 200);
+                    damage = 800 + (hiddenUpgradeLevel * 200);
                     multiplier = 1.5;
                 } else {
                     int tIndex = tileTypeIndex[y][x];
                     String targetElement = (String) target[M_ELEMENT];
-                    baseDamage = (tier * 20) + (upgradeLevels[tIndex] * 30 * tier);
-
-                    if (!targetElement.equals("무속성")) {
-                        String towerElement = tileTowerType[y][x];
-                        if (towerElement.equals("불") && targetElement.equals("풀")) multiplier = 1.5;
-                        else if (towerElement.equals("불") && targetElement.equals("물")) multiplier = 0.5;
-                        else if (towerElement.equals("물") && targetElement.equals("불")) multiplier = 1.5;
-                        else if (towerElement.equals("물") && targetElement.equals("풀")) multiplier = 0.5;
-                        else if (towerElement.equals("풀") && targetElement.equals("물")) multiplier = 1.5;
-                        else if (towerElement.equals("풀") && targetElement.equals("불")) multiplier = 0.5;
-                    }
+                    damage = (tier * 20) + (upgradeLevels[tIndex] * 30 * tier);
+                    multiplier = calcElementMultiplier(tileTowerType[y][x], targetElement);
                 }
 
-                int targetHp = (int) target[M_HP];
-                target[M_HP] = targetHp - (int) (baseDamage * multiplier);
+                target[M_HP] = (int) target[M_HP] - (int) (damage * multiplier);
                 tileCooldown[y][x] = 20;
 
                 Object[] laser = new Object[7];
-                laser[L_START_X] = x * TILE_SIZE + 22;
-                laser[L_START_Y] = y * TILE_SIZE + 72;
+                laser[L_START_X] = x * TILE_SIZE + GRID_ORIGIN_X + 22;
+                laser[L_START_Y] = y * TILE_SIZE + GRID_ORIGIN_Y + 22;
                 laser[L_END_X] = (int) (double) target[M_X];
                 laser[L_END_Y] = (int) (double) target[M_Y];
                 laser[L_FRAMES] = 3;
@@ -446,26 +593,33 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
             l[L_FRAMES] = frames;
             return frames <= 0;
         });
-
         repaint();
     }
 
+    private double calcElementMultiplier(String towerElement, String targetElement) {
+        if ("Boss".equals(targetElement)) return 1.0;
+        if ("Fire".equals(towerElement) && "Nature".equals(targetElement)) return 1.5;
+        if ("Fire".equals(towerElement) && "Water".equals(targetElement)) return 0.5;
+        if ("Water".equals(towerElement) && "Fire".equals(targetElement)) return 1.5;
+        if ("Water".equals(towerElement) && "Nature".equals(targetElement)) return 0.5;
+        if ("Nature".equals(towerElement) && "Water".equals(targetElement)) return 1.5;
+        if ("Nature".equals(towerElement) && "Fire".equals(targetElement)) return 0.5;
+        return 1.0;
+    }
+
     private Object[] findClosestMonster(int tileX, int tileY) {
-        int towerCenterX = tileX * TILE_SIZE + 22;
-        int towerCenterY = tileY * TILE_SIZE + 72;
+        int towerCenterX = tileX * TILE_SIZE + GRID_ORIGIN_X + 22;
+        int towerCenterY = tileY * TILE_SIZE + GRID_ORIGIN_Y + 22;
 
         int tier = tileTier[tileY][tileX];
-        double currentRange;
-        if (tier == 4) {
-            currentRange = 200.0 + (hiddenUpgradeLevel * 20.0);
-        } else {
-            currentRange = 120.0 + (upgradeLevels[tileTypeIndex[tileY][tileX]] * 15.0);
-        }
+        double range;
+        if (tier == 4) range = 200.0 + (hiddenUpgradeLevel * 20.0);
+        else range = 120.0 + (upgradeLevels[tileTypeIndex[tileY][tileX]] * 15.0);
 
         for (Object[] m : monsters) {
             double dx = (double) m[M_X] - towerCenterX;
             double dy = (double) m[M_Y] - towerCenterY;
-            if (Math.hypot(dx, dy) <= currentRange) return m;
+            if (Math.hypot(dx, dy) <= range) return m;
         }
         return null;
     }
@@ -476,359 +630,452 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
         Graphics2D g2 = (Graphics2D) g.create();
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-        boolean isBossWave = (wave % 10 == 0);
-        float waveProgress = Math.max(0f, Math.min(1f, (600 - waveTimer) / 600f));
-        float lifeRatio = Math.max(0f, Math.min(1f, life / 20f));
 
-        String spawnText = (waveTimer > 200)
-                ? (isBossWave ? "보스 출현!" : String.format("스폰 간격: %.1f초", spawnCooldown / 20.0))
-                : "[정비 시간] 타워를 배치하세요!";
+        paintBackground(g2);
+        paintTopHud(g2);
+        paintPath(g2);
+        paintGrid(g2);
+        paintMonsters(g2);
+        paintLasers(g2);
+        paintBottomPanel(g2);
 
-        g2.setPaint(new GradientPaint(0, 0, new Color(22, 28, 40), 0, getHeight(), new Color(11, 15, 24)));
-        g2.fillRect(0, 0, getWidth(), getHeight());
-
-        g2.setColor(new Color(255, 255, 255, 10));
-        for (int i = 0; i < 32; i++) {
-            int sx = (i * 67 + 23) % getWidth();
-            int sy = (i * 37 + 40) % 590;
-            g2.fillOval(sx, sy, 2, 2);
-        }
-
-        g2.setColor(new Color(18, 24, 36));
-        g2.fillRoundRect(8, 8, 524, 38, 16, 16);
-        g2.setColor(new Color(80, 100, 135));
-        g2.drawRoundRect(8, 8, 524, 38, 16, 16);
-
-        g2.setFont(new Font("맑은 고딕", Font.BOLD, 14));
-        if (life > 0) {
-            if (isBossWave && waveTimer > 200) g2.setColor(new Color(255, 120, 250));
-            else if (waveTimer <= 200) g2.setColor(new Color(125, 255, 170));
-            else g2.setColor(new Color(230, 235, 245));
-
-            g2.drawString("Wave: " + wave + " | 남은 시간: " + (waveTimer / 20) + "초 | " + spawnText, 16, 24);
-
-            if (monsters.size() >= 80) g2.setColor(new Color(255, 115, 115));
-            else g2.setColor(new Color(168, 206, 255));
-            g2.drawString("필드 몹: " + monsters.size() + " / " + MAX_FIELD_MONSTERS + " | 라이프: " + life + " | 골드: " + gold, 16, 42);
-        } else {
-            g2.setColor(new Color(255, 90, 90));
-            g2.setFont(new Font("맑은 고딕", Font.BOLD, 24));
-            g2.drawString("GAME OVER", 200, 35);
-        }
-
-        g2.setColor(new Color(28, 38, 54));
-        g2.fillRoundRect(8, 47, 524, 13, 8, 8);
-        g2.setColor(new Color(66, 82, 108));
-        g2.drawRoundRect(8, 47, 524, 13, 8, 8);
-        g2.setPaint(new GradientPaint(8, 47, new Color(90, 170, 255), 532, 60, new Color(118, 244, 186)));
-        g2.fillRoundRect(8, 47, (int) (524 * waveProgress), 13, 8, 8);
-
-        g2.setColor(new Color(18, 24, 36));
-        g2.fillRoundRect(10, 63, 160, 20, 10, 10);
-        g2.setColor(new Color(66, 82, 108));
-        g2.drawRoundRect(10, 63, 160, 20, 10, 10);
-        g2.setColor(new Color(56, 76, 100));
-        g2.fillRoundRect(70, 68, 92, 10, 6, 6);
-        g2.setColor(life <= 5 ? new Color(255, 88, 88) : new Color(104, 232, 132));
-        g2.fillRoundRect(70, 68, (int) (92 * lifeRatio), 10, 6, 6);
-        g2.setFont(new Font("맑은 고딕", Font.BOLD, 12));
-        g2.setColor(new Color(236, 241, 250));
-        g2.drawString("라이프", 20, 78);
-        g2.drawString(life + " / 20", 102, 78);
-
-        g2.setColor(new Color(18, 24, 36));
-        g2.fillRoundRect(176, 63, 150, 20, 10, 10);
-        g2.setColor(new Color(66, 82, 108));
-        g2.drawRoundRect(176, 63, 150, 20, 10, 10);
-        g2.setColor(new Color(255, 203, 79));
-        g2.fillOval(186, 68, 10, 10);
-        g2.setColor(new Color(236, 241, 250));
-        g2.drawString("골드 " + gold, 203, 78);
-
-        g2.setColor(currentSpeed == 1 ? new Color(77, 93, 112) : new Color(228, 79, 79));
-        g2.fillRoundRect(450, 10, 70, 30, 12, 12);
-        g2.setColor(new Color(235, 240, 250));
-        g2.drawRoundRect(450, 10, 70, 30, 12, 12);
-        g2.setFont(new Font("맑은 고딕", Font.BOLD, 14));
-        g2.drawString("속도 x" + currentSpeed, 456, 31);
-
-        g2.setColor(isBossWave && waveTimer > 200
-                ? new Color(255, 130, 230, 160)
-                : new Color(77, 98, 128, 160));
-        g2.setStroke(new BasicStroke(8f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-        for (int i = 0; i < waypoints.length - 1; i++) {
-            g2.drawLine(waypoints[i][0], waypoints[i][1], waypoints[i + 1][0], waypoints[i + 1][1]);
-        }
-
-        for (int y = 0; y < GRID_SIZE; y++) {
-            for (int x = 0; x < GRID_SIZE; x++) {
-                int drawY = y * TILE_SIZE + 50;
-                g2.setColor(tileBuildable[y][x] ? new Color(73, 96, 120) : new Color(28, 36, 48));
-                g2.fillRoundRect(x * TILE_SIZE + 1, drawY + 1, TILE_SIZE - 2, TILE_SIZE - 2, 8, 8);
-                g2.setColor(new Color(15, 20, 30));
-                g2.drawRoundRect(x * TILE_SIZE + 1, drawY + 1, TILE_SIZE - 2, TILE_SIZE - 2, 8, 8);
-
-                if (tileBuildable[y][x]) {
-                    g2.setColor(new Color(180, 210, 250, 16));
-                    g2.drawLine(x * TILE_SIZE + 8, drawY + 10, x * TILE_SIZE + 36, drawY + 10);
-                } else {
-                    g2.setColor(new Color(255, 120, 170, 35));
-                    g2.drawLine(x * TILE_SIZE + 8, drawY + 35, x * TILE_SIZE + 36, drawY + 35);
-                }
-
-                if (tileHasTower[y][x]) {
-                    g2.setColor(new Color(20, 28, 40));
-                    g2.fillRoundRect(x * TILE_SIZE + 6, y * TILE_SIZE + 56, 33, 33, 10, 10);
-                    g2.setColor(new Color(120, 140, 170));
-                    g2.drawRoundRect(x * TILE_SIZE + 6, y * TILE_SIZE + 56, 33, 33, 10, 10);
-
-                    drawTowerCharacter(g2, x * TILE_SIZE + 6, y * TILE_SIZE + 56, tileTowerType[y][x], tileColor[y][x], tileTier[y][x]);
-
-                    if (tileTier[y][x] >= 3) {
-                        g2.setColor(new Color(255, 235, 150, 70));
-                        g2.fillOval(x * TILE_SIZE + 2, y * TILE_SIZE + 52, 41, 41);
-                    }
-
-                    if (tileTier[y][x] == 4) {
-                        g2.setColor(new Color(255, 229, 123));
-                        g2.setFont(new Font("맑은 고딕", Font.BOLD, 10));
-                        g2.drawString(tileTowerType[y][x].replace("(히든)", ""), x * TILE_SIZE + 8, y * TILE_SIZE + 70);
-                        g2.drawString("HIDDEN", x * TILE_SIZE + 6, y * TILE_SIZE + 84);
-                    } else {
-                        g2.setColor(new Color(15, 15, 15));
-                        g2.setFont(new Font("맑은 고딕", Font.BOLD, 11));
-                        g2.drawString(tileTowerType[y][x] + tileTier[y][x], x * TILE_SIZE + 10, y * TILE_SIZE + 78);
-                    }
-                }
-
-                if (tileSelected[y][x]) {
-                    g2.setColor(new Color(126, 250, 171));
-                    g2.drawRoundRect(x * TILE_SIZE, drawY, TILE_SIZE, TILE_SIZE, 8, 8);
-                    g2.drawRoundRect(x * TILE_SIZE + 1, drawY + 1, TILE_SIZE - 2, TILE_SIZE - 2, 7, 7);
-
-                    int currentRange = (tileTier[y][x] == 4)
-                            ? 200 + (hiddenUpgradeLevel * 20)
-                            : 120 + (upgradeLevels[tileTypeIndex[y][x]] * 15);
-
-                    g2.setColor(new Color(180, 240, 210, 55));
-                    g2.fillOval(x * TILE_SIZE + 22 - currentRange, y * TILE_SIZE + 72 - currentRange, currentRange * 2, currentRange * 2);
-                }
-            }
-        }
-
-        for (Object[] m : monsters) {
-            int drawX = (int) ((double) m[M_X] - (double) m[M_RADIUS]);
-            int drawY = (int) ((double) m[M_Y] - (double) m[M_RADIUS]);
-            int size = (int) ((double) m[M_RADIUS] * 2);
-            boolean isBoss = (boolean) m[M_BOSS];
-            drawMonsterCharacter(g2, m, drawX, drawY, size);
-
-            if (m == selectedMonster) {
-                g2.setColor(new Color(255, 240, 140));
-                g2.drawRoundRect(drawX - 2, drawY - 2, size + 4, size + 4, 6, 6);
-            } else {
-                g2.setColor(Color.WHITE);
-                if (isBoss) g2.drawRoundRect(drawX, drawY, size, size, 6, 6);
-                else g2.drawOval(drawX, drawY, size, size);
-            }
-
-            g2.setColor(new Color(200, 45, 45));
-            g2.fillRoundRect(drawX, drawY - 10, size, 5, 3, 3);
-            g2.setColor(new Color(88, 220, 110));
-            int hpWidth = (int) (((int) m[M_HP] / (double) (int) m[M_MAX_HP]) * size);
-            if (hpWidth < 0) hpWidth = 0;
-            g2.fillRoundRect(drawX, drawY - 10, hpWidth, 5, 3, 3);
-        }
-
-        for (Object[] l : lasers) {
-            g2.setColor((Color) l[L_COLOR]);
-            g2.setStroke(new BasicStroke((boolean) l[L_HEAVY] ? 7 : 3, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-            g2.drawLine((int) l[L_START_X], (int) l[L_START_Y], (int) l[L_END_X], (int) l[L_END_Y]);
-        }
-
-        g2.setColor(new Color(16, 20, 32, 240));
-        g2.fillRoundRect(6, 592, 528, 124, 12, 12);
-        g2.setColor(new Color(87, 103, 132));
-        g2.drawRoundRect(6, 592, 528, 124, 12, 12);
-
-        g2.setColor(new Color(28, 36, 50));
-        g2.fillRoundRect(10, 600, 240, 100, 12, 12);
-        g2.setColor(new Color(102, 122, 155));
-        g2.drawRoundRect(10, 600, 240, 100, 12, 12);
-        g2.setColor(new Color(235, 240, 250));
-        g2.setFont(new Font("맑은 고딕", Font.BOLD, 13));
-        g2.drawString("설치 비용: 10 골드", 20, 615);
-        g2.setColor(new Color(170, 182, 201));
-        g2.drawString("같은 등급+속성 타워를 합치면 강화됩니다", 20, 633);
-
-        if (hasSelectedTile() && tileHasTower[selectedTileY][selectedTileX]) {
-            if (tileTier[selectedTileY][selectedTileX] == 4) {
-                int currentAtk = 800 + (hiddenUpgradeLevel * 200);
-                int currentRange = 200 + (hiddenUpgradeLevel * 20);
-                g2.setColor(new Color(255, 232, 135));
-                g2.drawString("선택됨: " + tileTowerType[selectedTileY][selectedTileX], 20, 635);
-                g2.setColor(Color.WHITE);
-                g2.drawString("공격력: " + currentAtk + " | 사거리: " + currentRange, 20, 658);
-                g2.setFont(new Font("맑은 고딕", Font.PLAIN, 12));
-                g2.drawString("(+히든 보너스: " + (hiddenUpgradeLevel * 200) + ")", 20, 680);
-            } else {
-                int typeIdx = tileTypeIndex[selectedTileY][selectedTileX];
-                int tier = tileTier[selectedTileY][selectedTileX];
-                int currentAtk = (tier * 20) + (upgradeLevels[typeIdx] * 30 * tier);
-                int currentRange = 120 + (upgradeLevels[typeIdx] * 15);
-                g2.drawString("선택됨: " + tileTowerType[selectedTileY][selectedTileX] + " 타워 (Lv." + tier + ")", 20, 635);
-                g2.drawString("공격력: " + currentAtk + " | 사거리: " + currentRange, 20, 658);
-                g2.setColor(new Color(255, 229, 140));
-                g2.setFont(new Font("맑은 고딕", Font.PLAIN, 12));
-                g2.drawString("(+업글 보너스: 뎀 " + (upgradeLevels[typeIdx] * 30 * tier) + ")", 20, 680);
-            }
-
-            g2.setColor(new Color(215, 74, 74));
-            g2.fillRoundRect(180, 640, 60, 30, 10, 10);
-            g2.setColor(Color.WHITE);
-            g2.drawRoundRect(180, 640, 60, 30, 10, 10);
-            g2.setFont(new Font("맑은 고딕", Font.BOLD, 12));
-            g2.drawString("판매(" + (tileTier[selectedTileY][selectedTileX] * 5) + ")", 185, 660);
-
-        } else if (selectedMonster != null) {
-            String prefix = (boolean) selectedMonster[M_BOSS] ? "[보스] " : "";
+        if (life <= 0) {
+            g2.setColor(new Color(8, 10, 15, 210));
+            g2.fillRect(0, 0, getWidth(), getHeight());
+            g2.setColor(new Color(255, 105, 105));
+            g2.setFont(new Font("Malgun Gothic", Font.BOLD, 42));
+            drawCentered(g2, "\uAC8C\uC784 \uC624\uBC84", getWidth() / 2, getHeight() / 2 - 8);
             g2.setColor(new Color(235, 240, 250));
-            g2.drawString("선택됨: " + prefix + (String) selectedMonster[M_ELEMENT], 20, 640);
-            g2.drawString("체력: " + (int) selectedMonster[M_HP] + " / " + (int) selectedMonster[M_MAX_HP], 20, 665);
-        } else {
-            g2.setColor(new Color(167, 178, 196));
-            g2.drawString("타워나 몬스터를 클릭하세요.", 20, 650);
+            g2.setFont(new Font("Malgun Gothic", Font.PLAIN, 16));
+            drawCentered(g2, "\uB3C4\uB2EC \uC6E8\uC774\uBE0C: " + wave, getWidth() / 2, getHeight() / 2 + 24);
         }
-
-        g2.setColor(new Color(28, 36, 50));
-        g2.fillRoundRect(260, 600, 270, 100, 12, 12);
-        g2.setColor(new Color(102, 122, 155));
-        g2.drawRoundRect(260, 600, 270, 100, 12, 12);
-        g2.setColor(Color.WHITE);
-        g2.setFont(new Font("맑은 고딕", Font.BOLD, 12));
-        g2.drawString("업그레이드 (일반 20골드 / 히든 50골드)", 265, 620);
-
-        String[] btnNames = {"불", "물", "풀"};
-        for (int i = 0; i < 3; i++) {
-            int bx = 265 + (i * 65);
-            g2.setColor(typeColors[i]);
-            g2.fillRoundRect(bx, 630, 60, 40, 10, 10);
-            g2.setColor(new Color(10, 10, 10));
-            g2.drawRoundRect(bx, 630, 60, 40, 10, 10);
-
-            g2.setFont(new Font("맑은 고딕", Font.BOLD, 12));
-            g2.setColor(new Color(22, 22, 22));
-            g2.drawString(btnNames[i] + " Lv." + upgradeLevels[i], bx + 8, 655);
-        }
-
-        int hbx = 265 + (3 * 65);
-        g2.setColor(new Color(148, 72, 210));
-        g2.fillRoundRect(hbx, 630, 60, 40, 10, 10);
-        g2.setColor(Color.WHITE);
-        g2.drawRoundRect(hbx, 630, 60, 40, 10, 10);
-        g2.setFont(new Font("맑은 고딕", Font.BOLD, 11));
-        g2.drawString("히든Lv." + hiddenUpgradeLevel, hbx + 5, 650);
-        g2.setFont(new Font("맑은 고딕", Font.PLAIN, 10));
-        g2.drawString("비용 50", hbx + 15, 664);
 
         g2.dispose();
     }
 
-    private void drawTowerCharacter(Graphics2D g2, int x, int y, String towerType, Color color, int tier) {
-        g2.setColor(new Color(255, 255, 255, 30));
-        g2.fillOval(x + 8, y + 8, 18, 18);
-
-        if (towerType.startsWith("불")) {
-            int[] fx = {x + 16, x + 9, x + 14, x + 11, x + 22, x + 20, x + 24};
-            int[] fy = {y + 3, y + 16, y + 16, y + 25, y + 19, y + 29, y + 17};
-            g2.setColor(new Color(255, 130, 50));
-            g2.fillPolygon(fx, fy, fx.length);
-            g2.setColor(new Color(255, 220, 120));
-            g2.fillOval(x + 14, y + 13, 8, 10);
-        } else if (towerType.startsWith("물")) {
-            int[] dx = {x + 16, x + 9, x + 11, x + 16, x + 21, x + 23};
-            int[] dy = {y + 4, y + 15, y + 24, y + 29, y + 24, y + 15};
-            g2.setColor(new Color(105, 190, 255));
-            g2.fillPolygon(dx, dy, dx.length);
-            g2.setColor(new Color(190, 236, 255));
-            g2.fillOval(x + 14, y + 11, 5, 6);
-        } else if (towerType.startsWith("풀")) {
-            g2.setColor(new Color(94, 212, 116));
-            g2.fillOval(x + 8, y + 12, 10, 16);
-            g2.fillOval(x + 16, y + 10, 10, 16);
-            g2.setColor(new Color(60, 150, 78));
-            g2.drawLine(x + 16, y + 28, x + 16, y + 8);
-        } else if (towerType.startsWith("빛")) {
-            int[] sx = {x + 16, x + 20, x + 29, x + 22, x + 24, x + 16, x + 8, x + 10, x + 3, x + 12};
-            int[] sy = {y + 3, y + 12, y + 12, y + 18, y + 28, y + 22, y + 28, y + 18, y + 12, y + 12};
-            g2.setColor(new Color(255, 242, 150));
-            g2.fillPolygon(sx, sy, sx.length);
-        } else if (towerType.startsWith("어둠")) {
-            g2.setColor(new Color(145, 97, 222));
-            g2.fillOval(x + 8, y + 7, 18, 20);
-            g2.setColor(new Color(20, 28, 40));
-            g2.fillOval(x + 13, y + 7, 14, 20);
-        } else if (towerType.startsWith("혼돈")) {
-            g2.setColor(new Color(242, 90, 190));
-            g2.fillOval(x + 7, y + 9, 20, 16);
-            g2.setColor(new Color(33, 38, 60));
-            g2.fillOval(x + 12, y + 13, 10, 8);
-            g2.setColor(new Color(255, 255, 255));
-            g2.fillOval(x + 15, y + 15, 4, 4);
-        } else {
-            g2.setColor(color);
-            g2.fillOval(x + 9, y + 9, 16, 16);
+    private void paintBackground(Graphics2D g2) {
+        g2.setPaint(new GradientPaint(0, 0, new Color(18, 25, 39), 0, getHeight(), new Color(10, 14, 23)));
+        g2.fillRect(0, 0, getWidth(), getHeight());
+        if (bgTexture != null) {
+            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.20f));
+            g2.drawImage(bgTexture, 0, 0, getWidth(), getHeight(), null);
+            g2.setComposite(AlphaComposite.SrcOver);
         }
-
-        g2.setColor(new Color(240, 245, 255));
-        g2.setFont(new Font("맑은 고딕", Font.BOLD, 10));
-        g2.drawString("Lv." + tier, x + 4, y + 32);
+        g2.setColor(new Color(255, 255, 255, 20));
+        for (int i = 0; i < 36; i++) {
+            int x = (i * 71 + 19) % PANEL_W;
+            int y = (i * 29 + tick * 2) % PANEL_H;
+            g2.fillOval(x, y, 2, 2);
+        }
     }
 
-    private void drawMonsterCharacter(Graphics2D g2, Object[] m, int drawX, int drawY, int size) {
+    private void paintTopHud(Graphics2D g2) {
+        paintCard(g2, 8, 8, 524, TOP_PANEL_H, new Color(18, 26, 38), new Color(78, 98, 126));
+
+        boolean isBossWave = wave % 10 == 0;
+        String status;
+        if (waveTimer > 200) {
+            status = isBossWave
+                    ? "\uBCF4\uC2A4 \uCD9C\uD604 \uC784\uBC15"
+                    : String.format("\uC2A4\uD3F0 \uAC04\uACA9 %.1f\uCD08", spawnCooldown / 20.0);
+        } else {
+            status = "\uBC30\uCE58 \uC2DC\uAC04";
+        }
+
+        g2.setFont(new Font("Malgun Gothic", Font.BOLD, 13));
+        g2.setColor(new Color(236, 241, 250));
+        g2.drawString(
+                "\uC6E8\uC774\uBE0C " + wave + " | \uC2DC\uAC04 " + (waveTimer / 20) + "\uCD08 | " + status,
+                18, 28
+        );
+
+        g2.setColor(monsters.size() >= 80 ? new Color(255, 115, 115) : new Color(165, 207, 255));
+        g2.drawString(
+                "\uD544\uB4DC " + monsters.size() + "/" + MAX_FIELD_MONSTERS
+                        + " | \uC0DD\uBA85 " + life + " | \uACE8\uB4DC " + gold,
+                18, 45
+        );
+
+        paintRoundedButton(
+                g2,
+                speedButton,
+                currentSpeed == 1 ? new Color(70, 92, 118) : new Color(228, 84, 84),
+                "\uC18D\uB3C4 x" + currentSpeed
+        );
+
+        float waveProgress = Math.max(0f, Math.min(1f, (600 - waveTimer) / 600f));
+        g2.setColor(new Color(22, 31, 47));
+        g2.fillRoundRect(8, TOP_PANEL_H + 14, 524, 12, 8, 8);
+        g2.setColor(new Color(84, 107, 137));
+        g2.drawRoundRect(8, TOP_PANEL_H + 14, 524, 12, 8, 8);
+        g2.setPaint(new GradientPaint(8, TOP_PANEL_H + 14, new Color(80, 184, 255), 532, TOP_PANEL_H + 26, new Color(110, 246, 178)));
+        g2.fillRoundRect(8, TOP_PANEL_H + 14, (int) (524 * waveProgress), 12, 8, 8);
+    }
+
+    private void paintPath(Graphics2D g2) {
+        boolean isBossWave = wave % 10 == 0;
+        float pulse = (float) (0.5 + 0.5 * Math.sin(tick * 0.1));
+        int alpha = isBossWave ? (int) (130 + pulse * 60) : 120;
+        g2.setColor(isBossWave ? new Color(255, 130, 230, alpha) : new Color(94, 118, 148, alpha));
+        g2.setStroke(new BasicStroke(9f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        for (int i = 0; i < waypoints.length - 1; i++) {
+            g2.drawLine(waypoints[i][0], waypoints[i][1], waypoints[i + 1][0], waypoints[i + 1][1]);
+        }
+    }
+
+    private void paintGrid(Graphics2D g2) {
+        for (int y = 0; y < GRID_SIZE; y++) {
+            for (int x = 0; x < GRID_SIZE; x++) {
+                int drawX = GRID_ORIGIN_X + x * TILE_SIZE;
+                int drawY = GRID_ORIGIN_Y + y * TILE_SIZE;
+                if (tileBuildable[y][x]) {
+                    g2.drawImage(buildTileTexture, drawX - 1, drawY - 1, TILE_SIZE + 2, TILE_SIZE + 2, null);
+                } else {
+                    drawPathTile(g2, x, y, drawX, drawY);
+                }
+
+                if (tileHasTower[y][x]) {
+                    drawTower(g2, x, y, drawX, drawY);
+                }
+
+                if (tileSelected[y][x]) {
+                    g2.setColor(new Color(131, 252, 176));
+                    g2.setStroke(new BasicStroke(2f));
+                    g2.drawRoundRect(drawX + 1, drawY + 1, TILE_SIZE - 2, TILE_SIZE - 2, 8, 8);
+                    int range = tileTier[y][x] == 4 ? 200 + hiddenUpgradeLevel * 20 : 120 + upgradeLevels[tileTypeIndex[y][x]] * 15;
+                    g2.setColor(new Color(170, 240, 210, 45));
+                    g2.fillOval(drawX + 22 - range, drawY + 22 - range, range * 2, range * 2);
+                }
+            }
+        }
+    }
+
+    private void drawPathTile(Graphics2D g2, int gridX, int gridY, int drawX, int drawY) {
+        boolean up = isPathTile(gridX, gridY - 1);
+        boolean right = isPathTile(gridX + 1, gridY);
+        boolean down = isPathTile(gridX, gridY + 1);
+        boolean left = isPathTile(gridX - 1, gridY);
+        int connected = (up ? 1 : 0) + (right ? 1 : 0) + (down ? 1 : 0) + (left ? 1 : 0);
+
+        BufferedImage texture = pathStraightTexture;
+        double rotation = 0.0;
+
+        if (connected >= 3) {
+            texture = pathCrossTexture;
+        } else if (connected == 2) {
+            if ((up && down) || (left && right)) {
+                texture = pathStraightTexture;
+                rotation = (left && right) ? Math.PI / 2.0 : 0.0;
+            } else {
+                texture = pathCurveTexture;
+                rotation = getCurveRotation(up, right, down, left);
+            }
+        } else if (connected == 1) {
+            texture = pathStraightTexture;
+            rotation = (left || right) ? Math.PI / 2.0 : 0.0;
+        }
+
+        drawRotatedTile(g2, texture, drawX, drawY, rotation);
+    }
+
+    private boolean isPathTile(int x, int y) {
+        return x >= 0 && x < GRID_SIZE && y >= 0 && y < GRID_SIZE && !tileBuildable[y][x];
+    }
+
+    private double getCurveRotation(boolean up, boolean right, boolean down, boolean left) {
+        if (up && right) return 0.0;
+        if (right && down) return Math.PI / 2.0;
+        if (down && left) return Math.PI;
+        if (left && up) return -Math.PI / 2.0;
+        return 0.0;
+    }
+
+    private void drawRotatedTile(Graphics2D g2, BufferedImage texture, int drawX, int drawY, double rotation) {
+        if (texture == null) return;
+        if (Math.abs(rotation) < 0.0001) {
+            g2.drawImage(texture, drawX - 1, drawY - 1, TILE_SIZE + 2, TILE_SIZE + 2, null);
+            return;
+        }
+
+        AffineTransform original = g2.getTransform();
+        AffineTransform transform = new AffineTransform();
+        transform.translate(drawX + TILE_SIZE / 2.0, drawY + TILE_SIZE / 2.0);
+        transform.rotate(rotation);
+        double bleedScale = (TILE_SIZE + 2.0) / TILE_SIZE;
+        transform.scale(bleedScale, bleedScale);
+        transform.translate(-TILE_SIZE / 2.0, -TILE_SIZE / 2.0);
+        g2.drawImage(texture, transform, null);
+        g2.setTransform(original);
+    }
+
+    private void drawTower(Graphics2D g2, int gridX, int gridY, int drawX, int drawY) {
+        int tier = tileTier[gridY][gridX];
+        String type = tileTowerType[gridY][gridX];
+        Color color = tileColor[gridY][gridX];
+        int spriteIndex = getTowerSpriteIndex(type);
+
+        g2.setColor(new Color(18, 26, 38));
+        g2.fillRoundRect(drawX + 6, drawY + 6, 33, 33, 10, 10);
+        g2.setColor(new Color(116, 136, 164));
+        g2.drawRoundRect(drawX + 6, drawY + 6, 33, 33, 10, 10);
+
+        BufferedImage sprite = towerSprites[spriteIndex];
+        int spriteOffset = (TILE_SIZE - TOWER_SPRITE_SIZE) / 2;
+        if (sprite != null) {
+            g2.drawImage(sprite, drawX + spriteOffset, drawY + spriteOffset, TOWER_SPRITE_SIZE, TOWER_SPRITE_SIZE, null);
+        } else {
+            drawFallbackTowerGlyph(g2, drawX + spriteOffset, drawY + spriteOffset, type, color);
+        }
+
+        if (tier >= 3) {
+            g2.setColor(new Color(255, 235, 150, 70));
+            g2.fillOval(drawX + 1, drawY + 1, 43, 43);
+        }
+
+        g2.setColor(new Color(239, 244, 254));
+        g2.setFont(new Font("Segoe UI", Font.BOLD, 10));
+        g2.drawString("T" + tier, drawX + 4, drawY + 40);
+    }
+
+    private int getTowerSpriteIndex(String type) {
+        if ("Fire".equals(type)) return 0;
+        if ("Water".equals(type)) return 1;
+        if ("Nature".equals(type)) return 2;
+        if ("Arcane".equals(type)) return 3;
+        if ("Shadow".equals(type)) return 4;
+        if ("Chaos".equals(type)) return 5;
+        return 0;
+    }
+
+    private void drawFallbackTowerGlyph(Graphics2D g2, int x, int y, String type, Color color) {
+        if ("Fire".equals(type)) {
+            g2.setColor(new Color(255, 140, 66));
+            int[] fx = {x + 14, x + 9, x + 12, x + 11, x + 19, x + 17, x + 21};
+            int[] fy = {y + 1, y + 11, y + 11, y + 18, y + 13, y + 22, y + 12};
+            g2.fillPolygon(fx, fy, fx.length);
+        } else if ("Water".equals(type)) {
+            g2.setColor(new Color(123, 203, 255));
+            int[] dx = {x + 14, x + 9, x + 11, x + 14, x + 17, x + 19};
+            int[] dy = {y + 2, y + 10, y + 18, y + 23, y + 18, y + 10};
+            g2.fillPolygon(dx, dy, dx.length);
+        } else if ("Nature".equals(type)) {
+            g2.setColor(new Color(98, 216, 121));
+            g2.fillOval(x + 5, y + 8, 9, 14);
+            g2.fillOval(x + 13, y + 7, 9, 14);
+            g2.setColor(new Color(52, 156, 77));
+            g2.drawLine(x + 14, y + 23, x + 14, y + 6);
+        } else if ("Arcane".equals(type)) {
+            g2.setColor(new Color(255, 232, 130));
+            int[] sx = {x + 14, x + 18, x + 24, x + 19, x + 20, x + 14, x + 8, x + 9, x + 4, x + 10};
+            int[] sy = {y + 1, y + 8, y + 8, y + 13, y + 20, y + 15, y + 20, y + 13, y + 8, y + 8};
+            g2.fillPolygon(sx, sy, sx.length);
+        } else if ("Shadow".equals(type)) {
+            g2.setColor(new Color(130, 103, 232));
+            g2.fillOval(x + 6, y + 4, 15, 18);
+            g2.setColor(new Color(25, 32, 48));
+            g2.fillOval(x + 10, y + 4, 11, 18);
+        } else if ("Chaos".equals(type)) {
+            g2.setColor(new Color(255, 94, 193));
+            g2.fillOval(x + 5, y + 7, 18, 14);
+            g2.setColor(new Color(29, 35, 50));
+            g2.fillOval(x + 10, y + 10, 9, 7);
+            g2.setColor(Color.WHITE);
+            g2.fillOval(x + 12, y + 12, 4, 4);
+        } else {
+            g2.setColor(color == null ? new Color(180, 190, 205) : color);
+            g2.fillOval(x + 6, y + 6, 15, 15);
+        }
+    }
+
+    private void paintMonsters(Graphics2D g2) {
+        for (Object[] m : monsters) {
+            boolean isBoss = (boolean) m[M_BOSS];
+            double baseSize = (double) m[M_RADIUS] * 2.0;
+            double scale = isBoss ? MONSTER_SCALE_BOSS : MONSTER_SCALE_NORMAL;
+            int size = (int) Math.round(baseSize * scale);
+            int drawX = (int) Math.round((double) m[M_X] - (size / 2.0));
+            int drawY = (int) Math.round((double) m[M_Y] - (size / 2.0));
+
+            BufferedImage sprite = getMonsterSprite((String) m[M_ELEMENT], isBoss);
+            if (sprite != null) {
+                g2.drawImage(sprite, drawX, drawY, size, size, null);
+            } else {
+                drawFallbackMonster(g2, m, drawX, drawY, size);
+            }
+
+            if (m == selectedMonster) {
+                g2.setColor(new Color(255, 238, 141));
+                g2.drawRoundRect(drawX - 2, drawY - 2, size + 4, size + 4, 8, 8);
+            } else {
+                g2.setColor(new Color(250, 250, 255, 180));
+                if (isBoss) g2.drawRoundRect(drawX, drawY, size, size, 7, 7);
+                else g2.drawOval(drawX, drawY, size, size);
+            }
+
+            g2.setColor(new Color(196, 48, 58));
+            g2.fillRoundRect(drawX, drawY - 10, size, 5, 3, 3);
+            g2.setColor(new Color(98, 224, 123));
+            int hpWidth = (int) (((int) m[M_HP] / (double) (int) m[M_MAX_HP]) * size);
+            if (hpWidth < 0) hpWidth = 0;
+            g2.fillRoundRect(drawX, drawY - 10, hpWidth, 5, 3, 3);
+        }
+    }
+
+    private BufferedImage getMonsterSprite(String element, boolean isBoss) {
+        if (isBoss) return monsterSprites[3];
+        if ("Fire".equals(element)) return monsterSprites[0];
+        if ("Water".equals(element)) return monsterSprites[1];
+        if ("Nature".equals(element)) return monsterSprites[2];
+        return null;
+    }
+
+    private void drawFallbackMonster(Graphics2D g2, Object[] m, int drawX, int drawY, int size) {
         boolean isBoss = (boolean) m[M_BOSS];
         String element = (String) m[M_ELEMENT];
         Color color = (Color) m[M_COLOR];
-
         g2.setColor(color);
-        if (isBoss) g2.fillRoundRect(drawX, drawY, size, size, 10, 10);
+        if (isBoss) g2.fillRoundRect(drawX, drawY, size, size, 9, 9);
         else g2.fillOval(drawX, drawY, size, size);
 
         g2.setColor(new Color(255, 255, 255, 45));
         g2.fillOval(drawX + 4, drawY + 4, Math.max(5, size / 3), Math.max(5, size / 3));
-
-        g2.setColor(new Color(22, 24, 30));
+        g2.setColor(new Color(20, 24, 30));
         int eyeY = drawY + size / 3;
         g2.fillOval(drawX + size / 4, eyeY, 4, 4);
         g2.fillOval(drawX + (size * 2 / 3) - 2, eyeY, 4, 4);
         g2.drawArc(drawX + size / 3, drawY + size / 2, size / 3, size / 4, 200, 140);
 
-        if (element.equals("불")) {
+        if ("Fire".equals(element)) {
             g2.setColor(new Color(255, 190, 120));
             g2.drawLine(drawX + size / 2, drawY - 2, drawX + size / 2 + 3, drawY + 4);
-        } else if (element.equals("물")) {
+        } else if ("Water".equals(element)) {
             g2.setColor(new Color(188, 232, 255));
             g2.fillOval(drawX + size / 2 - 2, drawY - 2, 4, 6);
-        } else if (element.equals("풀")) {
+        } else if ("Nature".equals(element)) {
             g2.setColor(new Color(146, 228, 140));
             g2.drawLine(drawX + size / 2, drawY - 2, drawX + size / 2, drawY + 4);
             g2.drawLine(drawX + size / 2, drawY + 1, drawX + size / 2 + 3, drawY + 3);
         }
+    }
 
-        if (isBoss) {
-            g2.setColor(new Color(255, 224, 120));
-            int[] cx = {drawX + 4, drawX + 8, drawX + 12, drawX + 16, drawX + 20, drawX + 24, drawX + 28, drawX + 32};
-            int[] cy = {drawY + 1, drawY - 3, drawY + 1, drawY - 4, drawY + 1, drawY - 3, drawY + 1, drawY + 1};
-            g2.fillPolygon(cx, cy, cx.length);
+    private void paintLasers(Graphics2D g2) {
+        for (Object[] l : lasers) {
+            g2.setColor((Color) l[L_COLOR]);
+            g2.setStroke(new BasicStroke((boolean) l[L_HEAVY] ? 7f : 3f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g2.drawLine((int) l[L_START_X], (int) l[L_START_Y], (int) l[L_END_X], (int) l[L_END_Y]);
         }
     }
 
+    private void paintBottomPanel(Graphics2D g2) {
+        paintCard(g2, 6, BOTTOM_PANEL_Y - 2, 528, 132, new Color(16, 22, 34, 235), new Color(87, 103, 132));
+        paintCard(g2, 10, BOTTOM_PANEL_Y + 6, 240, 112, new Color(27, 36, 52), new Color(102, 122, 155));
+        paintCard(g2, 258, BOTTOM_PANEL_Y + 6, 272, 112, new Color(27, 36, 52), new Color(102, 122, 155));
+
+        g2.setFont(new Font("Malgun Gothic", Font.BOLD, 13));
+        g2.setColor(new Color(236, 241, 250));
+        g2.drawString("\uD0C0\uC6CC \uBE44\uC6A9: 10 \uACE8\uB4DC", 20, BOTTOM_PANEL_Y + 24);
+        g2.setColor(new Color(169, 181, 201));
+        g2.setFont(new Font("Malgun Gothic", Font.PLAIN, 12));
+        g2.drawString(
+                "\uAC19\uC740 \uD2F0\uC5B4+\uD0C0\uC785 \uD0C0\uC6CC \uD569\uC131 \uC2DC \uAC15\uD654\uB429\uB2C8\uB2E4.",
+                20, BOTTOM_PANEL_Y + 42
+        );
+        g2.drawString(
+                "\uD2F0\uC5B43 \uB07C\uB9AC \uD569\uC131\uD558\uBA74 \uC2A4\uD398\uC15C \uD0C0\uC6CC\uAC00 \uB098\uC635\uB2C8\uB2E4.",
+                20, BOTTOM_PANEL_Y + 58
+        );
+
+        if (hasSelectedTile() && tileHasTower[selectedTileY][selectedTileX]) {
+            drawTowerInfo(g2);
+            paintRoundedButton(
+                    g2, sellButton, new Color(215, 74, 74),
+                    "\uD310\uB9E4 +" + tileTier[selectedTileY][selectedTileX] * 5
+            );
+        } else if (selectedMonster != null) {
+            g2.setColor(new Color(235, 240, 250));
+            String prefix = (boolean) selectedMonster[M_BOSS] ? "[\uBCF4\uC2A4] " : "";
+            g2.drawString("\uC120\uD0DD: " + prefix + toKoreanLabel((String) selectedMonster[M_ELEMENT]), 20, BOTTOM_PANEL_Y + 80);
+            g2.drawString("HP " + selectedMonster[M_HP] + " / " + selectedMonster[M_MAX_HP], 20, BOTTOM_PANEL_Y + 100);
+        } else {
+            g2.setColor(new Color(167, 178, 196));
+            g2.drawString("\uD0C0\uC6CC \uB610\uB294 \uBAAC\uC2A4\uD130\uB97C \uD074\uB9AD\uD558\uC138\uC694.", 20, BOTTOM_PANEL_Y + 90);
+        }
+
+        g2.setColor(Color.WHITE);
+        g2.setFont(new Font("Malgun Gothic", Font.BOLD, 12));
+        g2.drawString("\uC5C5\uADF8\uB808\uC774\uB4DC (\uC77C\uBC18 20 / \uC2A4\uD398\uC15C 50)", 266, BOTTOM_PANEL_Y + 24);
+
+        for (int i = 0; i < 3; i++) {
+            paintRoundedButton(g2, upgradeButtons[i], ELEMENT_COLORS[i], ELEMENT_LABELS[i] + " Lv." + upgradeLevels[i]);
+        }
+        paintRoundedButton(g2, upgradeButtons[3], new Color(148, 72, 210), "\uC2A4\uD398\uC15C Lv." + hiddenUpgradeLevel);
+    }
+
+    private void drawTowerInfo(Graphics2D g2) {
+        String towerType = toKoreanLabel(tileTowerType[selectedTileY][selectedTileX]);
+        int tier = tileTier[selectedTileY][selectedTileX];
+        g2.setColor(new Color(235, 240, 250));
+        g2.setFont(new Font("Malgun Gothic", Font.BOLD, 12));
+
+        if (tier == 4) {
+            int atk = 800 + (hiddenUpgradeLevel * 200);
+            int range = 200 + (hiddenUpgradeLevel * 20);
+            g2.setColor(new Color(255, 232, 135));
+            g2.drawString("\uC120\uD0DD: " + towerType + " \uC2A4\uD398\uC15C \uD0C0\uC6CC", 20, BOTTOM_PANEL_Y + 76);
+            g2.setColor(Color.WHITE);
+            g2.drawString("\uACF5\uACA9\uB825 " + atk + " | \uC0AC\uAC70\uB9AC " + range, 20, BOTTOM_PANEL_Y + 96);
+        } else {
+            int typeIdx = tileTypeIndex[selectedTileY][selectedTileX];
+            int atk = (tier * 20) + (upgradeLevels[typeIdx] * 30 * tier);
+            int range = 120 + (upgradeLevels[typeIdx] * 15);
+            g2.drawString(
+                    "\uC120\uD0DD: " + towerType + " \uD0C0\uC6CC (\uD2F0\uC5B4 " + tier + ")",
+                    20, BOTTOM_PANEL_Y + 76
+            );
+            g2.drawString("\uACF5\uACA9\uB825 " + atk + " | \uC0AC\uAC70\uB9AC " + range, 20, BOTTOM_PANEL_Y + 96);
+        }
+    }
+
+    private void paintCard(Graphics2D g2, int x, int y, int w, int h, Color fill, Color border) {
+        g2.setColor(fill);
+        g2.fillRoundRect(x, y, w, h, 14, 14);
+        g2.setColor(border);
+        g2.drawRoundRect(x, y, w, h, 14, 14);
+    }
+
+    private void paintRoundedButton(Graphics2D g2, Rectangle rect, Color fill, String label) {
+        g2.setColor(fill);
+        g2.fillRoundRect(rect.x, rect.y, rect.width, rect.height, 10, 10);
+        g2.setColor(new Color(235, 240, 250));
+        g2.drawRoundRect(rect.x, rect.y, rect.width, rect.height, 10, 10);
+        g2.setFont(new Font("Malgun Gothic", Font.BOLD, 11));
+        drawCentered(g2, label, rect.x + rect.width / 2, rect.y + rect.height / 2 + 4);
+    }
+
+    private void drawCentered(Graphics2D g2, String text, int centerX, int baselineY) {
+        FontMetrics fm = g2.getFontMetrics();
+        g2.drawString(text, centerX - fm.stringWidth(text) / 2, baselineY);
+    }
+
+    private String toKoreanLabel(String element) {
+        if ("Fire".equals(element)) return "\uD654\uC5FC";
+        if ("Water".equals(element)) return "\uBB3C";
+        if ("Nature".equals(element)) return "\uC790\uC5F0";
+        if ("Arcane".equals(element)) return "\uBE44\uC804";
+        if ("Shadow".equals(element)) return "\uADF8\uB9BC\uC790";
+        if ("Chaos".equals(element)) return "\uD63C\uB3C8";
+        if ("Boss".equals(element)) return "\uBCF4\uC2A4";
+        return element;
+    }
+
     public static void main(String[] args) {
-        JFrame frame = new JFrame("스타 랜타디 - 히든 전용 업그레이드");
-        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.add(new RandomTowerDefense());
-        frame.pack();
-        frame.setLocationRelativeTo(null);
-        frame.setVisible(true);
+        SwingUtilities.invokeLater(() -> {
+            JFrame frame = new JFrame("\uB79C\uB364 \uD0C0\uC6CC \uB514\uD39C\uC2A4 - UI \uC5C5\uADF8\uB808\uC774\uB4DC");
+            frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+            frame.setContentPane(new RandomTowerDefense());
+            frame.pack();
+            frame.setLocationRelativeTo(null);
+            frame.setVisible(true);
+        });
     }
 }
