@@ -651,7 +651,7 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
 
         if (waveTimer <= 0) {
             // ★ 웨이브 클리어 보너스 지급
-            int bonus = 10 + wave;
+            int bonus = 60;
             gold += bonus;
             showToast("\uD83C\uDF0A 웨이브 클리어! 보너스 +" + bonus + "G", 40);
 
