@@ -80,11 +80,24 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
     private final List<Object[]> lasers = new ArrayList<>();
     private final Random random = new Random();
 
+    // ★ 퀘스트 관련 객체 및 변수
+    class Quest {
+        String name, desc;
+        int reward;
+        boolean completed;
+        public Quest(String name, String desc, int reward) {
+            this.name = name; this.desc = desc; this.reward = reward; this.completed = false;
+        }
+    }
+    private final List<Quest> questList = new ArrayList<>();
+    private boolean showQuestUI = false;
+    private String toastMsg = "";
+    private int toastTimer = 0;
+
     private final int[] upgradeLevels = {0, 0, 0};
     private int hiddenUpgradeLevel = 0;
 
     private int life = 20;
-    // ★ 극악 난이도: 초기 골드 60원 유지!
     private int gold = 60;
     private int wave = 1;
     private int waveTimer = 600;
@@ -104,8 +117,11 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
     private final int[][] waypoints = new int[12][2];
 
     private final Rectangle speedButton = new Rectangle(448, 12, 78, 30);
+    // ★ 퀘스트 관련 버튼 영역
+    private final Rectangle questButton = new Rectangle(360, 12, 78, 30);
+    private final Rectangle closeQuestBtn = new Rectangle(PANEL_W / 2 - 60, PANEL_H - 120, 120, 40);
+
     private final Rectangle sellButton = new Rectangle(172, 656, 70, 34);
-    // ★ 다시 시작 버튼 구역 추가
     private final Rectangle restartButton = new Rectangle(PANEL_W / 2 - 80, PANEL_H / 2 + 60, 160, 45);
     private final Rectangle[] upgradeButtons = {
             new Rectangle(264, 664, 60, 40),
@@ -159,6 +175,8 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
             waypoints[i][1] = gridWaypoints[i][1] * TILE_SIZE + (TILE_SIZE / 2) + GRID_ORIGIN_Y;
         }
 
+        initQuests(); // 퀘스트 초기화
+
         loadAssets();
         addMouseListener(this);
 
@@ -166,7 +184,16 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
         gameLoop.start();
     }
 
-    // ★ 게임 완전 초기화 메서드
+    // ★ 퀘스트 목록 세팅
+    private void initQuests() {
+        questList.clear();
+        questList.add(new Quest("나무가 자란다!", "자연(풀) 타워 6개 모으기", 150));
+        questList.add(new Quest("불바다", "화염(불) 타워 6개 모으기", 150));
+        questList.add(new Quest("대홍수", "물 타워 6개 모으기", 150));
+        questList.add(new Quest("전설의 시작", "스페셜(히든) 타워 1개 제작", 300));
+        questList.add(new Quest("타워 콜렉터", "맵에 타워 15개 이상 건설", 200));
+    }
+
     private void resetGame() {
         life = 20;
         gold = 60;
@@ -176,6 +203,8 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
         spawnedThisWave = 0;
         currentSpeed = 1;
         tick = 0;
+        showQuestUI = false;
+        toastTimer = 0;
         gameLoop.setDelay(50);
 
         for (int i=0; i<3; i++) upgradeLevels[i] = 0;
@@ -185,6 +214,8 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
         lasers.clear();
         clearSelectedTile();
         selectedMonster = null;
+
+        initQuests(); // 퀘스트 기록 초기화
 
         for (int y = 0; y < GRID_SIZE; y++) {
             for (int x = 0; x < GRID_SIZE; x++) {
@@ -312,12 +343,27 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
         int mouseX = e.getX();
         int mouseY = e.getY();
 
-        // ★ 게임 오버 상태일 때: 다시 시작 버튼만 누를 수 있게 차단
         if (life <= 0) {
             if (restartButton.contains(mouseX, mouseY)) {
                 resetGame();
                 repaint();
             }
+            return;
+        }
+
+        // ★ 퀘스트 창 띄워져 있을 시 다른 클릭 막기
+        if (showQuestUI) {
+            if (closeQuestBtn.contains(mouseX, mouseY)) {
+                showQuestUI = false;
+                repaint();
+            }
+            return;
+        }
+
+        // ★ 퀘스트 창 열기
+        if (questButton.contains(mouseX, mouseY)) {
+            showQuestUI = true;
+            repaint();
             return;
         }
 
@@ -450,6 +496,7 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
                 gold -= TOWER_COST;
                 int typeIndex = random.nextInt(ELEMENTS.length);
                 setTower(x, y, ELEMENTS[typeIndex], ELEMENT_COLORS[typeIndex], 1, typeIndex);
+                checkQuests(); // ★ 타워 건설 시 퀘스트 검사
             }
             return;
         }
@@ -472,20 +519,55 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
                 int rIndex = random.nextInt(ELEMENTS.length);
                 setTower(x, y, ELEMENTS[rIndex], ELEMENT_COLORS[rIndex], newTier, rIndex);
                 clearTile(sx, sy);
+                checkQuests(); // ★ 합성 시 퀘스트 검사
             } else if (tileTier[sy][sx] == 3) {
-                // ★ 20% 확률로 히든 강림, 실패시 파괴 (가챠 유지)
                 if (random.nextInt(100) < 20) {
                     int rIndex = random.nextInt(HIDDEN_ELEMENTS.length);
                     setTower(x, y, HIDDEN_ELEMENTS[rIndex], HIDDEN_COLORS[rIndex], 4, -1);
                 } else {
-                    clearTile(x, y); // 실패시 타겟 파괴
+                    clearTile(x, y);
                 }
-                clearTile(sx, sy); // 재료 파괴
+                clearTile(sx, sy);
+                checkQuests(); // ★ 히든 합성 시 퀘스트 검사
             }
         }
 
         if(tileHasTower[y][x]) selectTile(x, y);
         else clearSelectedTile();
+    }
+
+    // ★ 퀘스트 달성 여부 실시간 체크 로직
+    private void checkQuests() {
+        int natureCount = 0, fireCount = 0, waterCount = 0, hiddenCount = 0, totalTowers = 0;
+
+        for (int y = 0; y < GRID_SIZE; y++) {
+            for (int x = 0; x < GRID_SIZE; x++) {
+                if (tileHasTower[y][x]) {
+                    totalTowers++;
+                    if (tileTier[y][x] == 4) hiddenCount++;
+                    else {
+                        String type = tileTowerType[y][x];
+                        if ("Nature".equals(type)) natureCount++;
+                        else if ("Fire".equals(type)) fireCount++;
+                        else if ("Water".equals(type)) waterCount++;
+                    }
+                }
+            }
+        }
+
+        if (!questList.get(0).completed && natureCount >= 6) completeQuest(questList.get(0));
+        if (!questList.get(1).completed && fireCount >= 6) completeQuest(questList.get(1));
+        if (!questList.get(2).completed && waterCount >= 6) completeQuest(questList.get(2));
+        if (!questList.get(3).completed && hiddenCount >= 1) completeQuest(questList.get(3));
+        if (!questList.get(4).completed && totalTowers >= 15) completeQuest(questList.get(4));
+    }
+
+    // ★ 퀘스트 달성 처리
+    private void completeQuest(Quest q) {
+        q.completed = true;
+        gold += q.reward;
+        toastMsg = "\uD83C\uDF89 퀘스트 달성: " + q.name + " (+" + q.reward + "G)";
+        toastTimer = 60; // 약 3초 동안 알림 띄우기
     }
 
     private Object[] createMonster(String element, Color color, int hp, boolean isBoss) {
@@ -503,7 +585,7 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
     }
 
     private void spawnMonster() {
-        int idx = (wave - 1) % ELEMENTS.length; // 단일 속성 고정 로직 유지
+        int idx = (wave - 1) % ELEMENTS.length;
         int maxHp = 200 + ((wave - 1) * 150);
         monsters.add(createMonster(ELEMENTS[idx], ELEMENT_COLORS[idx], maxHp, false));
     }
@@ -544,6 +626,8 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
         tick++;
         waveTimer--;
 
+        if (toastTimer > 0) toastTimer--; // ★ 알림 타이머 감소
+
         if (waveTimer <= 0) {
             wave++;
             waveTimer = 600;
@@ -576,7 +660,6 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
             int hp = (int) m[M_HP];
             boolean isBoss = (boolean) m[M_BOSS];
             if (hp <= 0) {
-                // ★ 몹 보상 너프 유지: 일반 1원, 보스 10원
                 gold += isBoss ? 10 : 1;
                 if (selectedMonster == m) selectedMonster = null;
                 mobIter.remove();
@@ -603,7 +686,7 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
                 double multiplier = 1.0;
 
                 if (tier == 4) {
-                    damage = 500 + (hiddenUpgradeLevel * 100); // ★ 히든 타워 너프 유지
+                    damage = 500 + (hiddenUpgradeLevel * 100);
                     multiplier = 1.5;
                 } else {
                     int tIndex = tileTypeIndex[y][x];
@@ -678,7 +761,46 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
         paintLasers(g2);
         paintBottomPanel(g2);
 
-        // ★ 게임 오버 시 UI 처리
+        // ★ 토스트 알림 (퀘스트 달성 등) 그리기
+        if (toastTimer > 0) {
+            g2.setColor(new Color(0, 0, 0, 180));
+            g2.fillRoundRect(PANEL_W / 2 - 140, 80, 280, 40, 20, 20);
+            g2.setColor(new Color(255, 223, 105));
+            g2.setFont(new Font("Malgun Gothic", Font.BOLD, 14));
+            drawCentered(g2, toastMsg, PANEL_W / 2, 105);
+        }
+
+        // ★ 퀘스트 목록 모달 UI 창 렌더링
+        if (showQuestUI) {
+            g2.setColor(new Color(10, 14, 23, 200));
+            g2.fillRect(0, 0, getWidth(), getHeight());
+
+            int qw = 340, qh = 420;
+            int qx = (PANEL_W - qw) / 2, qy = (PANEL_H - qh) / 2;
+
+            paintCard(g2, qx, qy, qw, qh, new Color(28, 36, 50), new Color(102, 122, 155));
+
+            g2.setColor(new Color(235, 240, 250));
+            g2.setFont(new Font("Malgun Gothic", Font.BOLD, 20));
+            drawCentered(g2, "=== 퀘스트 목록 ===", PANEL_W / 2, qy + 40);
+
+            int listY = qy + 80;
+            for (Quest q : questList) {
+                g2.setColor(q.completed ? new Color(100, 150, 100) : new Color(200, 200, 200));
+                g2.setFont(new Font("Malgun Gothic", Font.BOLD, 14));
+                String status = q.completed ? "[완료]" : "[진행중]";
+                g2.drawString(status + " " + q.name, qx + 20, listY);
+
+                g2.setColor(q.completed ? new Color(100, 120, 100) : new Color(150, 150, 150));
+                g2.setFont(new Font("Malgun Gothic", Font.PLAIN, 12));
+                g2.drawString("- " + q.desc + " (보상: " + q.reward + "G)", qx + 20, listY + 20);
+
+                listY += 50;
+            }
+
+            paintRoundedButton(g2, closeQuestBtn, new Color(215, 74, 74), "닫기");
+        }
+
         if (life <= 0) {
             g2.setColor(new Color(8, 10, 15, 210));
             g2.fillRect(0, 0, getWidth(), getHeight());
@@ -691,7 +813,6 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
             g2.setFont(new Font("Malgun Gothic", Font.PLAIN, 16));
             drawCentered(g2, "\uB3C4\uB2EC \uC6E8\uC774\uBE0C: " + wave, getWidth() / 2, getHeight() / 2 + 20); // 도달 웨이브
 
-            // ★ 다시 시작 버튼 렌더링
             g2.setColor(new Color(78, 112, 136));
             g2.fillRoundRect(restartButton.x, restartButton.y, restartButton.width, restartButton.height, 12, 12);
             g2.setColor(Color.WHITE);
@@ -744,6 +865,14 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
                 "\uD544\uB4DC " + monsters.size() + "/" + MAX_FIELD_MONSTERS
                         + " | \uC0DD\uBA85 " + life + " | \uACE8\uB4DC " + gold,
                 18, 45
+        );
+
+        // ★ 퀘스트 버튼 그리기
+        paintRoundedButton(
+                g2,
+                questButton,
+                new Color(100, 150, 100),
+                "퀘스트"
         );
 
         paintRoundedButton(
@@ -1120,7 +1249,7 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
-            JFrame frame = new JFrame("\uB79C\uB364 \uD0C0\uC6CC \uB514\uD39C\uC2A4 - \uB2E4\uC2DC\uC2DC\uC791 \uC801\uC6A9");
+            JFrame frame = new JFrame("\uB79C\uB364 \uD0C0\uC6CC \uB514\uD39C\uC2A4 - \uD018\uC2A4\uD2B8 \uC2DC\uC2A4\uD15C");
             frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
             frame.setContentPane(new RandomTowerDefense());
             frame.pack();
