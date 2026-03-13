@@ -1,4 +1,3 @@
-
 import javax.imageio.ImageIO;
 import javax.swing.*;
 import java.awt.*;
@@ -36,9 +35,9 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
 
     private static final String[] ELEMENTS = {"Fire", "Water", "Nature"};
     private static final String[] ELEMENT_LABELS = {
-            "\uD654\uC5FC",
-            "\uBB3C",
-            "\uC790\uC5F0"
+            "\uD654\uC5FC", // 화염
+            "\uBB3C",     // 물
+            "\uC790\uC5F0"  // 자연
     };
     private static final Color[] ELEMENT_COLORS = {
             new Color(255, 114, 90),
@@ -85,7 +84,8 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
     private int hiddenUpgradeLevel = 0;
 
     private int life = 20;
-    private int gold = 150;
+    // ★ 극악 난이도: 초기 골드 60원 유지!
+    private int gold = 60;
     private int wave = 1;
     private int waveTimer = 600;
     private int spawnCooldown = 20;
@@ -105,6 +105,8 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
 
     private final Rectangle speedButton = new Rectangle(448, 12, 78, 30);
     private final Rectangle sellButton = new Rectangle(172, 656, 70, 34);
+    // ★ 다시 시작 버튼 구역 추가
+    private final Rectangle restartButton = new Rectangle(PANEL_W / 2 - 80, PANEL_H / 2 + 60, 160, 45);
     private final Rectangle[] upgradeButtons = {
             new Rectangle(264, 664, 60, 40),
             new Rectangle(330, 664, 60, 40),
@@ -162,6 +164,33 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
 
         gameLoop = new Timer(50, this);
         gameLoop.start();
+    }
+
+    // ★ 게임 완전 초기화 메서드
+    private void resetGame() {
+        life = 20;
+        gold = 60;
+        wave = 1;
+        waveTimer = 600;
+        spawnCooldown = 20;
+        spawnedThisWave = 0;
+        currentSpeed = 1;
+        tick = 0;
+        gameLoop.setDelay(50);
+
+        for (int i=0; i<3; i++) upgradeLevels[i] = 0;
+        hiddenUpgradeLevel = 0;
+
+        monsters.clear();
+        lasers.clear();
+        clearSelectedTile();
+        selectedMonster = null;
+
+        for (int y = 0; y < GRID_SIZE; y++) {
+            for (int x = 0; x < GRID_SIZE; x++) {
+                clearTile(x, y);
+            }
+        }
     }
 
     private void loadAssets() {
@@ -283,6 +312,15 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
         int mouseX = e.getX();
         int mouseY = e.getY();
 
+        // ★ 게임 오버 상태일 때: 다시 시작 버튼만 누를 수 있게 차단
+        if (life <= 0) {
+            if (restartButton.contains(mouseX, mouseY)) {
+                resetGame();
+                repaint();
+            }
+            return;
+        }
+
         if (speedButton.contains(mouseX, mouseY)) {
             currentSpeed++;
             if (currentSpeed > 3) currentSpeed = 1;
@@ -341,20 +379,13 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
     }
 
     @Override
-    public void mouseClicked(MouseEvent e) {
-    }
-
+    public void mouseClicked(MouseEvent e) { }
     @Override
-    public void mouseReleased(MouseEvent e) {
-    }
-
+    public void mouseReleased(MouseEvent e) { }
     @Override
-    public void mouseEntered(MouseEvent e) {
-    }
-
+    public void mouseEntered(MouseEvent e) { }
     @Override
-    public void mouseExited(MouseEvent e) {
-    }
+    public void mouseExited(MouseEvent e) { }
 
     private boolean hasSelectedTile() {
         return selectedTileX >= 0 && selectedTileY >= 0;
@@ -442,12 +473,19 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
                 setTower(x, y, ELEMENTS[rIndex], ELEMENT_COLORS[rIndex], newTier, rIndex);
                 clearTile(sx, sy);
             } else if (tileTier[sy][sx] == 3) {
-                int rIndex = random.nextInt(HIDDEN_ELEMENTS.length);
-                setTower(x, y, HIDDEN_ELEMENTS[rIndex], HIDDEN_COLORS[rIndex], 4, -1);
-                clearTile(sx, sy);
+                // ★ 20% 확률로 히든 강림, 실패시 파괴 (가챠 유지)
+                if (random.nextInt(100) < 20) {
+                    int rIndex = random.nextInt(HIDDEN_ELEMENTS.length);
+                    setTower(x, y, HIDDEN_ELEMENTS[rIndex], HIDDEN_COLORS[rIndex], 4, -1);
+                } else {
+                    clearTile(x, y); // 실패시 타겟 파괴
+                }
+                clearTile(sx, sy); // 재료 파괴
             }
         }
-        selectTile(x, y);
+
+        if(tileHasTower[y][x]) selectTile(x, y);
+        else clearSelectedTile();
     }
 
     private Object[] createMonster(String element, Color color, int hp, boolean isBoss) {
@@ -465,13 +503,13 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
     }
 
     private void spawnMonster() {
-        int idx = random.nextInt(ELEMENTS.length);
-        int maxHp = 100 + ((wave - 1) * 80);
+        int idx = (wave - 1) % ELEMENTS.length; // 단일 속성 고정 로직 유지
+        int maxHp = 200 + ((wave - 1) * 150);
         monsters.add(createMonster(ELEMENTS[idx], ELEMENT_COLORS[idx], maxHp, false));
     }
 
     private void spawnBoss() {
-        int maxHp = (100 + ((wave - 1) * 80)) * 25;
+        int maxHp = (200 + ((wave - 1) * 150)) * 20;
         monsters.add(createMonster("Boss", new Color(225, 90, 255), maxHp, true));
     }
 
@@ -538,7 +576,8 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
             int hp = (int) m[M_HP];
             boolean isBoss = (boolean) m[M_BOSS];
             if (hp <= 0) {
-                gold += isBoss ? 50 : 5;
+                // ★ 몹 보상 너프 유지: 일반 1원, 보스 10원
+                gold += isBoss ? 10 : 1;
                 if (selectedMonster == m) selectedMonster = null;
                 mobIter.remove();
             } else if (!moveMonster(m)) {
@@ -564,7 +603,7 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
                 double multiplier = 1.0;
 
                 if (tier == 4) {
-                    damage = 800 + (hiddenUpgradeLevel * 200);
+                    damage = 500 + (hiddenUpgradeLevel * 100); // ★ 히든 타워 너프 유지
                     multiplier = 1.5;
                 } else {
                     int tIndex = tileTypeIndex[y][x];
@@ -639,15 +678,26 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
         paintLasers(g2);
         paintBottomPanel(g2);
 
+        // ★ 게임 오버 시 UI 처리
         if (life <= 0) {
             g2.setColor(new Color(8, 10, 15, 210));
             g2.fillRect(0, 0, getWidth(), getHeight());
+
             g2.setColor(new Color(255, 105, 105));
             g2.setFont(new Font("Malgun Gothic", Font.BOLD, 42));
-            drawCentered(g2, "\uAC8C\uC784 \uC624\uBC84", getWidth() / 2, getHeight() / 2 - 8);
+            drawCentered(g2, "\uAC8C\uC784 \uC624\uBC84", getWidth() / 2, getHeight() / 2 - 20); // 게임 오버
+
             g2.setColor(new Color(235, 240, 250));
             g2.setFont(new Font("Malgun Gothic", Font.PLAIN, 16));
-            drawCentered(g2, "\uB3C4\uB2EC \uC6E8\uC774\uBE0C: " + wave, getWidth() / 2, getHeight() / 2 + 24);
+            drawCentered(g2, "\uB3C4\uB2EC \uC6E8\uC774\uBE0C: " + wave, getWidth() / 2, getHeight() / 2 + 20); // 도달 웨이브
+
+            // ★ 다시 시작 버튼 렌더링
+            g2.setColor(new Color(78, 112, 136));
+            g2.fillRoundRect(restartButton.x, restartButton.y, restartButton.width, restartButton.height, 12, 12);
+            g2.setColor(Color.WHITE);
+            g2.drawRoundRect(restartButton.x, restartButton.y, restartButton.width, restartButton.height, 12, 12);
+            g2.setFont(new Font("Malgun Gothic", Font.BOLD, 18));
+            drawCentered(g2, "\uB2E4\uC2DC \uC2DC\uC791", restartButton.x + restartButton.width / 2, restartButton.y + restartButton.height / 2 + 6); // 다시 시작
         }
 
         g2.dispose();
@@ -1018,7 +1068,7 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
         g2.setFont(new Font("Malgun Gothic", Font.BOLD, 12));
 
         if (tier == 4) {
-            int atk = 800 + (hiddenUpgradeLevel * 200);
+            int atk = 500 + (hiddenUpgradeLevel * 100);
             int range = 200 + (hiddenUpgradeLevel * 20);
             g2.setColor(new Color(255, 232, 135));
             g2.drawString("\uC120\uD0DD: " + towerType + " \uC2A4\uD398\uC15C \uD0C0\uC6CC", 20, BOTTOM_PANEL_Y + 76);
@@ -1070,7 +1120,7 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
-            JFrame frame = new JFrame("\uB79C\uB364 \uD0C0\uC6CC \uB514\uD39C\uC2A4 - UI \uC5C5\uADF8\uB808\uC774\uB4DC");
+            JFrame frame = new JFrame("\uB79C\uB364 \uD0C0\uC6CC \uB514\uD39C\uC2A4 - \uB2E4\uC2DC\uC2DC\uC791 \uC801\uC6A9");
             frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
             frame.setContentPane(new RandomTowerDefense());
             frame.pack();
