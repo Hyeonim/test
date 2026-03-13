@@ -11,7 +11,7 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
     private static final int TILE_SIZE = 45;
 
     private int life = 20;
-    private int gold = 150;
+    private int gold = 100;
 
     private int wave = 1;
     private int waveTimer = 600;
@@ -380,7 +380,7 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
             boolean isBoss = (boolean) m[M_BOSS];
 
             if (hp <= 0) {
-                gold += isBoss ? 50 : 5;
+                gold += isBoss ? 30 : 1;
                 if (selectedMonster == m) selectedMonster = null;
                 mobIter.remove();
             } else if (!moveMonster(m)) {
