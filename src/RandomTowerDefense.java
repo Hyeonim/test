@@ -30,6 +30,9 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
     private static final int UPGRADE_COST = 20;
     private static final int HIDDEN_UPGRADE_COST = 50;
     private static final int MAX_FIELD_MONSTERS = 100;
+    private static final int TOWER_SPRITE_SIZE = 33;
+    private static final double MONSTER_SCALE_NORMAL = 1.6;
+    private static final double MONSTER_SCALE_BOSS = 1.4;
 
     private static final String[] ELEMENTS = {"Fire", "Water", "Nature"};
     private static final String[] ELEMENT_LABELS = {
@@ -817,10 +820,11 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
         g2.drawRoundRect(drawX + 6, drawY + 6, 33, 33, 10, 10);
 
         BufferedImage sprite = towerSprites[spriteIndex];
+        int spriteOffset = (TILE_SIZE - TOWER_SPRITE_SIZE) / 2;
         if (sprite != null) {
-            g2.drawImage(sprite, drawX + 9, drawY + 9, 27, 27, null);
+            g2.drawImage(sprite, drawX + spriteOffset, drawY + spriteOffset, TOWER_SPRITE_SIZE, TOWER_SPRITE_SIZE, null);
         } else {
-            drawFallbackTowerGlyph(g2, drawX + 9, drawY + 9, type, color);
+            drawFallbackTowerGlyph(g2, drawX + spriteOffset, drawY + spriteOffset, type, color);
         }
 
         if (tier >= 3) {
@@ -885,10 +889,12 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
 
     private void paintMonsters(Graphics2D g2) {
         for (Object[] m : monsters) {
-            int drawX = (int) ((double) m[M_X] - (double) m[M_RADIUS]);
-            int drawY = (int) ((double) m[M_Y] - (double) m[M_RADIUS]);
-            int size = (int) ((double) m[M_RADIUS] * 2);
             boolean isBoss = (boolean) m[M_BOSS];
+            double baseSize = (double) m[M_RADIUS] * 2.0;
+            double scale = isBoss ? MONSTER_SCALE_BOSS : MONSTER_SCALE_NORMAL;
+            int size = (int) Math.round(baseSize * scale);
+            int drawX = (int) Math.round((double) m[M_X] - (size / 2.0));
+            int drawY = (int) Math.round((double) m[M_Y] - (size / 2.0));
 
             BufferedImage sprite = getMonsterSprite((String) m[M_ELEMENT], isBoss);
             if (sprite != null) {
