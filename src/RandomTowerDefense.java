@@ -1171,9 +1171,26 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
             g2.fillOval(drawX + 1, drawY + 1, 43, 43);
         }
 
-        g2.setColor(new Color(239, 244, 254));
-        g2.setFont(new Font("Segoe UI", Font.BOLD, 10));
-        g2.drawString("T" + tier, drawX + 4, drawY + 40);
+        drawTowerTierBadge(g2, drawX, drawY, tier, color);
+    }
+
+    private void drawTowerTierBadge(Graphics2D g2, int drawX, int drawY, int tier, Color towerColor) {
+        int badgeSize = 16;
+        int badgeX = drawX + TILE_SIZE - badgeSize - 2;
+        int badgeY = drawY + 2;
+        Color fill = towerColor == null ? new Color(60, 76, 98) : towerColor;
+
+        g2.setColor(new Color(12, 16, 24, 180));
+        g2.fillOval(badgeX + 1, badgeY + 1, badgeSize, badgeSize);
+        g2.setColor(fill);
+        g2.fillOval(badgeX, badgeY, badgeSize, badgeSize);
+        g2.setColor(new Color(245, 248, 255));
+        g2.setStroke(new BasicStroke(1.5f));
+        g2.drawOval(badgeX, badgeY, badgeSize, badgeSize);
+
+        g2.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        g2.setColor(new Color(16, 20, 28));
+        drawCentered(g2, String.valueOf(tier), badgeX + (badgeSize / 2), badgeY + 12);
     }
 
     private int getTowerSpriteIndex(String type) {
