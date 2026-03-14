@@ -33,8 +33,8 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
     private static final int MAX_WAVE = 100;
     private static final int MAX_FIELD_MONSTERS = 100;
     private static final int TOWER_SPRITE_SIZE = 33;
-    private static final double MONSTER_SCALE_NORMAL = 1.6;
-    private static final double MONSTER_SCALE_BOSS = 1.4;
+    private static final double MONSTER_SCALE_NORMAL = 2.15;
+    private static final double MONSTER_SCALE_BOSS = 1.85;
     private static final int FACING_FRONT = 0;
     private static final int FACING_BACK = 1;
     private static final int FACING_SIDE = 2;
@@ -266,10 +266,10 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
         towerSprites[4] = loadImage("assets/towers/shadow.png");
         towerSprites[5] = loadImage("assets/towers/chaos.png");
 
-        loadMonsterSpriteSet(0, "fire", "assets/monsters/fire.png");
-        loadMonsterSpriteSet(1, "water", "assets/monsters/water.png");
-        loadMonsterSpriteSet(2, "nature", "assets/monsters/nature.png");
-        loadMonsterSpriteSet(3, "boss", "assets/monsters/boss.png");
+        loadMonsterSpriteSet(0, "fire", "assets/monsters/org/fire.png");
+        loadMonsterSpriteSet(1, "water", "assets/monsters/org/water.png");
+        loadMonsterSpriteSet(2, "nature", "assets/monsters/org/nature.png");
+        loadMonsterSpriteSet(3, "boss", "assets/monsters/org/boss.png");
 
         if (buildTileTexture == null) buildTileTexture = makeTileTexture(new Color(78, 112, 136), new Color(96, 132, 160));
         if (pathStraightTexture == null) pathStraightTexture = makeTileTexture(new Color(38, 49, 64), new Color(31, 40, 54));
@@ -283,10 +283,25 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
     }
 
     private void loadMonsterSpriteSet(int spriteIndex, String assetName, String legacyPath) {
-        BufferedImage legacy = loadImage(legacyPath);
-        monsterDirectionalSprites[spriteIndex][FACING_FRONT] = loadImage("assets/monsters/" + assetName + "_front.png");
-        monsterDirectionalSprites[spriteIndex][FACING_BACK] = loadImage("assets/monsters/" + assetName + "_back.png");
-        monsterDirectionalSprites[spriteIndex][FACING_SIDE] = loadImage("assets/monsters/" + assetName + "_side.png");
+        BufferedImage legacy = normalizeMonsterSprite(loadImage(legacyPath));
+        if (legacy == null) {
+            legacy = normalizeMonsterSprite(loadImage("assets/monsters/" + assetName + ".png"));
+        }
+
+        BufferedImage sheet = loadImage("assets/monsters/motion/" + assetName + "-front-side-back.png");
+        if (sheet == null) {
+            sheet = loadImage("assets/monsters/" + assetName + "-front-side-back.png");
+        }
+        if (sheet != null) {
+            BufferedImage[] splitSprites = splitMonsterSpriteSheet(sheet);
+            monsterDirectionalSprites[spriteIndex][FACING_FRONT] = splitSprites[0];
+            monsterDirectionalSprites[spriteIndex][FACING_SIDE] = splitSprites[1];
+            monsterDirectionalSprites[spriteIndex][FACING_BACK] = splitSprites[2];
+        } else {
+            monsterDirectionalSprites[spriteIndex][FACING_FRONT] = normalizeMonsterSprite(loadImage("assets/monsters/" + assetName + "_front.png"));
+            monsterDirectionalSprites[spriteIndex][FACING_BACK] = normalizeMonsterSprite(loadImage("assets/monsters/" + assetName + "_back.png"));
+            monsterDirectionalSprites[spriteIndex][FACING_SIDE] = normalizeMonsterSprite(loadImage("assets/monsters/" + assetName + "_side.png"));
+        }
 
         if (monsterDirectionalSprites[spriteIndex][FACING_FRONT] == null) {
             monsterDirectionalSprites[spriteIndex][FACING_FRONT] = legacy;
@@ -297,6 +312,28 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
         if (monsterDirectionalSprites[spriteIndex][FACING_SIDE] == null) {
             monsterDirectionalSprites[spriteIndex][FACING_SIDE] = monsterDirectionalSprites[spriteIndex][FACING_FRONT];
         }
+    }
+
+    private BufferedImage[] splitMonsterSpriteSheet(BufferedImage sheet) {
+        BufferedImage[] sprites = new BufferedImage[3];
+        if (sheet == null) return sprites;
+
+        int sliceWidth = sheet.getWidth() / 3;
+        int remainder = sheet.getWidth() - (sliceWidth * 3);
+        int startX = 0;
+
+        for (int i = 0; i < 3; i++) {
+            int currentWidth = sliceWidth;
+            if (i == 2) currentWidth += remainder;
+            sprites[i] = normalizeMonsterSprite(sheet.getSubimage(startX, 0, currentWidth, sheet.getHeight()));
+            startX += sliceWidth;
+        }
+        return sprites;
+    }
+
+    private BufferedImage normalizeMonsterSprite(BufferedImage src) {
+        if (src == null) return null;
+        return trimTransparentBounds(src);
     }
 
     private BufferedImage loadImage(String relativePath) {
@@ -715,7 +752,7 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
 
         if (Math.abs(dx) >= Math.abs(dy)) {
             m[M_FACING] = FACING_SIDE;
-            m[M_MIRROR] = dx < 0;
+            m[M_MIRROR] = dx > 0;
         } else {
             m[M_FACING] = dy > 0 ? FACING_FRONT : FACING_BACK;
             m[M_MIRROR] = false;
