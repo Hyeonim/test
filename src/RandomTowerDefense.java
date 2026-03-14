@@ -6,7 +6,10 @@ import java.awt.event.ActionListener;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.Path2D;
 import java.awt.image.BufferedImage;
+import java.awt.image.ConvolveOp;
+import java.awt.image.Kernel;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -32,12 +35,15 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
     private static final int TOWER_SPRITE_SIZE = 33;
     private static final double MONSTER_SCALE_NORMAL = 1.6;
     private static final double MONSTER_SCALE_BOSS = 1.4;
+    private static final int FACING_FRONT = 0;
+    private static final int FACING_BACK = 1;
+    private static final int FACING_SIDE = 2;
 
     private static final String[] ELEMENTS = {"Fire", "Water", "Nature"};
     private static final String[] ELEMENT_LABELS = {
-            "\uD654\uC5FC", // 화염
-            "\uBB3C",     // 물
-            "\uC790\uC5F0"  // 자연
+            "\uD654\uC5FC",
+            "\uBB3C",
+            "\uC790\uC5F0"
     };
     private static final Color[] ELEMENT_COLORS = {
             new Color(255, 114, 90),
@@ -140,7 +146,7 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
     private BufferedImage pathCurveTexture;
     private BufferedImage pathCrossTexture;
     private final BufferedImage[] towerSprites = new BufferedImage[6];
-    private final BufferedImage[] monsterSprites = new BufferedImage[4];
+    private final BufferedImage[][] monsterDirectionalSprites = new BufferedImage[4][3];
 
     private Timer gameLoop;
 
@@ -153,6 +159,8 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
     private static final int M_COLOR = 6;
     private static final int M_BOSS = 7;
     private static final int M_RADIUS = 8;
+    private static final int M_FACING = 9;
+    private static final int M_MIRROR = 10;
 
     private static final int L_START_X = 0;
     private static final int L_START_Y = 1;
@@ -247,7 +255,6 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
         bgTexture = loadImage("assets/ui/background.png");
         buildTileTexture = loadImage("assets/ui/build_tile.png");
         pathStraightTexture = loadImage("assets/ui/path_tile/path_tile.png");
-        pathCurveTexture = loadImage("assets/ui/path_tile/curve_path_tile.png");
         pathCrossTexture = loadImage("assets/ui/path_tile/cross_path_tile.png");
 
         if (pathStraightTexture == null) pathStraightTexture = loadImage("assets/ui/path_tile.png");
@@ -259,25 +266,37 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
         towerSprites[4] = loadImage("assets/towers/shadow.png");
         towerSprites[5] = loadImage("assets/towers/chaos.png");
 
-        monsterSprites[0] = loadImage("assets/monsters/fire.png");
-        monsterSprites[1] = loadImage("assets/monsters/water.png");
-        monsterSprites[2] = loadImage("assets/monsters/nature.png");
-        monsterSprites[3] = loadImage("assets/monsters/boss.png");
+        loadMonsterSpriteSet(0, "fire", "assets/monsters/fire.png");
+        loadMonsterSpriteSet(1, "water", "assets/monsters/water.png");
+        loadMonsterSpriteSet(2, "nature", "assets/monsters/nature.png");
+        loadMonsterSpriteSet(3, "boss", "assets/monsters/boss.png");
 
         if (buildTileTexture == null) buildTileTexture = makeTileTexture(new Color(78, 112, 136), new Color(96, 132, 160));
         if (pathStraightTexture == null) pathStraightTexture = makeTileTexture(new Color(38, 49, 64), new Color(31, 40, 54));
-        if (pathCurveTexture == null) pathCurveTexture = pathStraightTexture;
         if (pathCrossTexture == null) pathCrossTexture = pathStraightTexture;
 
-        buildTileTexture = trimTransparentBounds(buildTileTexture);
-        pathStraightTexture = trimTransparentBounds(pathStraightTexture);
-        pathCurveTexture = trimTransparentBounds(pathCurveTexture);
-        pathCrossTexture = trimTransparentBounds(pathCrossTexture);
+        buildTileTexture = fitToTileSize(trimTransparentBounds(buildTileTexture));
+        pathStraightTexture = fitToTileSize(trimTransparentBounds(pathStraightTexture));
+        pathCrossTexture = fitToTileSize(trimTransparentBounds(pathCrossTexture));
+        pathCurveTexture = createCurvePathTexture(pathCrossTexture);
+        if (pathCurveTexture == null) pathCurveTexture = pathStraightTexture;
+    }
 
-        buildTileTexture = fitToTileSize(buildTileTexture);
-        pathStraightTexture = fitToTileSize(pathStraightTexture);
-        pathCurveTexture = fitToTileSize(pathCurveTexture);
-        pathCrossTexture = fitToTileSize(pathCrossTexture);
+    private void loadMonsterSpriteSet(int spriteIndex, String assetName, String legacyPath) {
+        BufferedImage legacy = loadImage(legacyPath);
+        monsterDirectionalSprites[spriteIndex][FACING_FRONT] = loadImage("assets/monsters/" + assetName + "_front.png");
+        monsterDirectionalSprites[spriteIndex][FACING_BACK] = loadImage("assets/monsters/" + assetName + "_back.png");
+        monsterDirectionalSprites[spriteIndex][FACING_SIDE] = loadImage("assets/monsters/" + assetName + "_side.png");
+
+        if (monsterDirectionalSprites[spriteIndex][FACING_FRONT] == null) {
+            monsterDirectionalSprites[spriteIndex][FACING_FRONT] = legacy;
+        }
+        if (monsterDirectionalSprites[spriteIndex][FACING_BACK] == null) {
+            monsterDirectionalSprites[spriteIndex][FACING_BACK] = monsterDirectionalSprites[spriteIndex][FACING_FRONT];
+        }
+        if (monsterDirectionalSprites[spriteIndex][FACING_SIDE] == null) {
+            monsterDirectionalSprites[spriteIndex][FACING_SIDE] = monsterDirectionalSprites[spriteIndex][FACING_FRONT];
+        }
     }
 
     private BufferedImage loadImage(String relativePath) {
@@ -342,6 +361,51 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
         if (maxX < minX || maxY < minY) return src;
         if (minX == 0 && minY == 0 && maxX == w - 1 && maxY == h - 1) return src;
         return src.getSubimage(minX, minY, (maxX - minX) + 1, (maxY - minY) + 1);
+    }
+
+    private BufferedImage createCurvePathTexture(BufferedImage crossTexture) {
+        if (crossTexture == null) return null;
+
+        BufferedImage source = fitToTileSize(crossTexture);
+        BufferedImage mask = new BufferedImage(TILE_SIZE, TILE_SIZE, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = mask.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.setColor(Color.WHITE);
+
+        float strokeWidth = TILE_SIZE * 0.70f;
+        float center = TILE_SIZE / 2.0f;
+        Path2D.Float curvePath = new Path2D.Float();
+        curvePath.moveTo(0, center);
+        curvePath.lineTo(center, center);
+        curvePath.lineTo(center, TILE_SIZE);
+        g.setStroke(new BasicStroke(strokeWidth, BasicStroke.CAP_BUTT, BasicStroke.JOIN_ROUND));
+        g.draw(curvePath);
+        g.dispose();
+
+        BufferedImage softenedMask = blurImage(blurImage(mask));
+        BufferedImage result = new BufferedImage(TILE_SIZE, TILE_SIZE, BufferedImage.TYPE_INT_ARGB);
+
+        for (int y = 0; y < TILE_SIZE; y++) {
+            for (int x = 0; x < TILE_SIZE; x++) {
+                int srcArgb = source.getRGB(x, y);
+                int srcAlpha = (srcArgb >>> 24) & 0xFF;
+                int maskAlpha = (softenedMask.getRGB(x, y) >>> 24) & 0xFF;
+                int outAlpha = (srcAlpha * maskAlpha) / 255;
+                result.setRGB(x, y, (outAlpha << 24) | (srcArgb & 0x00FFFFFF));
+            }
+        }
+
+        return result;
+    }
+
+    private BufferedImage blurImage(BufferedImage src) {
+        float[] kernel = {
+                1f / 16f, 2f / 16f, 1f / 16f,
+                2f / 16f, 4f / 16f, 2f / 16f,
+                1f / 16f, 2f / 16f, 1f / 16f
+        };
+        ConvolveOp blur = new ConvolveOp(new Kernel(3, 3, kernel), ConvolveOp.EDGE_NO_OP, null);
+        return blur.filter(src, null);
     }
 
     private BufferedImage makeTileTexture(Color c1, Color c2) {
@@ -590,7 +654,7 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
     }
 
     private Object[] createMonster(String element, Color color, int hp, boolean isBoss) {
-        Object[] monster = new Object[9];
+        Object[] monster = new Object[11];
         monster[M_ELEMENT] = element;
         monster[M_COLOR] = color;
         monster[M_MAX_HP] = hp;
@@ -600,6 +664,8 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
         monster[M_TARGET] = 1;
         monster[M_X] = (double) waypoints[0][0];
         monster[M_Y] = (double) waypoints[0][1];
+        monster[M_FACING] = FACING_FRONT;
+        monster[M_MIRROR] = false;
         return monster;
     }
 
@@ -631,14 +697,29 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
         double dx = targetX - centerX;
         double dy = targetY - centerY;
         double distance = Math.hypot(dx, dy);
+        updateMonsterFacing(m, dx, dy);
 
         if (distance <= speed) {
+            m[M_X] = (double) targetX;
+            m[M_Y] = (double) targetY;
             m[M_TARGET] = targetWaypoint + 1;
         } else {
             m[M_X] = centerX + (dx / distance) * speed;
             m[M_Y] = centerY + (dy / distance) * speed;
         }
         return true;
+    }
+
+    private void updateMonsterFacing(Object[] m, double dx, double dy) {
+        if (Math.abs(dx) < 0.001 && Math.abs(dy) < 0.001) return;
+
+        if (Math.abs(dx) >= Math.abs(dy)) {
+            m[M_FACING] = FACING_SIDE;
+            m[M_MIRROR] = dx < 0;
+        } else {
+            m[M_FACING] = dy > 0 ? FACING_FRONT : FACING_BACK;
+            m[M_MIRROR] = false;
+        }
     }
 
     @Override
@@ -1004,10 +1085,10 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
     }
 
     private double getCurveRotation(boolean up, boolean right, boolean down, boolean left) {
-        if (up && right) return 0.0;
-        if (right && down) return Math.PI / 2.0;
-        if (down && left) return Math.PI;
-        if (left && up) return -Math.PI / 2.0;
+        if (down && left) return 0.0;
+        if (left && up) return Math.PI / 2.0;
+        if (up && right) return Math.PI;
+        if (right && down) return -Math.PI / 2.0;
         return 0.0;
     }
 
@@ -1117,11 +1198,13 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
             int drawX = (int) Math.round((double) m[M_X] - (size / 2.0));
             int drawY = (int) Math.round((double) m[M_Y] - (size / 2.0));
 
-            BufferedImage sprite = getMonsterSprite((String) m[M_ELEMENT], isBoss);
+            int facing = (int) m[M_FACING];
+            boolean mirror = (boolean) m[M_MIRROR];
+            BufferedImage sprite = getMonsterSprite((String) m[M_ELEMENT], isBoss, facing);
             if (sprite != null) {
-                g2.drawImage(sprite, drawX, drawY, size, size, null);
+                drawMonsterSprite(g2, sprite, drawX, drawY, size, mirror);
             } else {
-                drawFallbackMonster(g2, m, drawX, drawY, size);
+                drawFallbackMonster(g2, m, drawX, drawY, size, facing, mirror);
             }
 
             if (m == selectedMonster) {
@@ -1142,15 +1225,29 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
         }
     }
 
-    private BufferedImage getMonsterSprite(String element, boolean isBoss) {
-        if (isBoss) return monsterSprites[3];
-        if ("Fire".equals(element)) return monsterSprites[0];
-        if ("Water".equals(element)) return monsterSprites[1];
-        if ("Nature".equals(element)) return monsterSprites[2];
-        return null;
+    private BufferedImage getMonsterSprite(String element, boolean isBoss, int facing) {
+        int spriteIndex = getMonsterSpriteIndex(element, isBoss);
+        if (spriteIndex < 0) return null;
+        return monsterDirectionalSprites[spriteIndex][facing];
     }
 
-    private void drawFallbackMonster(Graphics2D g2, Object[] m, int drawX, int drawY, int size) {
+    private int getMonsterSpriteIndex(String element, boolean isBoss) {
+        if (isBoss) return 3;
+        if ("Fire".equals(element)) return 0;
+        if ("Water".equals(element)) return 1;
+        if ("Nature".equals(element)) return 2;
+        return -1;
+    }
+
+    private void drawMonsterSprite(Graphics2D g2, BufferedImage sprite, int drawX, int drawY, int size, boolean mirror) {
+        if (mirror) {
+            g2.drawImage(sprite, drawX + size, drawY, -size, size, null);
+        } else {
+            g2.drawImage(sprite, drawX, drawY, size, size, null);
+        }
+    }
+
+    private void drawFallbackMonster(Graphics2D g2, Object[] m, int drawX, int drawY, int size, int facing, boolean mirror) {
         boolean isBoss = (boolean) m[M_BOSS];
         String element = (String) m[M_ELEMENT];
         Color color = (Color) m[M_COLOR];
@@ -1161,10 +1258,20 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
         g2.setColor(new Color(255, 255, 255, 45));
         g2.fillOval(drawX + 4, drawY + 4, Math.max(5, size / 3), Math.max(5, size / 3));
         g2.setColor(new Color(20, 24, 30));
-        int eyeY = drawY + size / 3;
-        g2.fillOval(drawX + size / 4, eyeY, 4, 4);
-        g2.fillOval(drawX + (size * 2 / 3) - 2, eyeY, 4, 4);
-        g2.drawArc(drawX + size / 3, drawY + size / 2, size / 3, size / 4, 200, 140);
+        if (facing == FACING_FRONT) {
+            int eyeY = drawY + size / 3;
+            g2.fillOval(drawX + size / 4, eyeY, 4, 4);
+            g2.fillOval(drawX + (size * 2 / 3) - 2, eyeY, 4, 4);
+            g2.drawArc(drawX + size / 3, drawY + size / 2, size / 3, size / 4, 200, 140);
+        } else if (facing == FACING_BACK) {
+            g2.drawArc(drawX + size / 3, drawY + size / 2, size / 3, size / 5, 20, 140);
+            g2.drawLine(drawX + size / 3, drawY + size / 3, drawX + (size * 2 / 3), drawY + size / 3);
+        } else {
+            int eyeX = mirror ? drawX + size / 3 : drawX + (size * 2 / 3) - 2;
+            int mouthX = mirror ? drawX + size / 5 : drawX + size / 2;
+            g2.fillOval(eyeX, drawY + size / 3, 4, 4);
+            g2.drawArc(mouthX, drawY + size / 2, size / 4, size / 4, 235, 110);
+        }
 
         if ("Fire".equals(element)) {
             g2.setColor(new Color(255, 190, 120));
