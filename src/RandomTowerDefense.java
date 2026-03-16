@@ -5,9 +5,12 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
+import java.awt.event.MouseMotionListener;
+import java.awt.color.ColorSpace;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Path2D;
 import java.awt.image.BufferedImage;
+import java.awt.image.ColorConvertOp;
 import java.awt.image.ConvolveOp;
 import java.awt.image.Kernel;
 import java.io.File;
@@ -17,7 +20,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
 
-public class RandomTowerDefense extends JPanel implements ActionListener, MouseListener {
+public class RandomTowerDefense extends JPanel implements ActionListener, MouseListener, MouseMotionListener {
     private static final int GRID_SIZE = 12;
     private static final int TILE_SIZE = 45;
 
@@ -57,6 +60,30 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
             new Color(115, 95, 210),
             new Color(255, 94, 193)
     };
+    private static final int BASE_WAVE_CLEAR_GOLD = 60;
+    private static final double NOBLE_WAVE_BONUS_RATE = 0.35;
+    private static final double KNIGHT_UPGRADE_DISCOUNT_RATE = 0.20;
+    private static final double ENGINEER_DAMAGE_BONUS_RATE = 0.20;
+
+    private enum Job {
+        NOBLE(0, "\uADC0\uC871", "\uC6E8\uC774\uBE0C \uD074\uB9AC\uC5B4 \uACE8\uB4DC +35%", "assets/ui/jobs/noble.png", new Color(198, 156, 78)),
+        KNIGHT_COMMANDER(1, "\uAE30\uC0AC\uB2E8\uC7A5", "\uD0C0\uC6CC \uAC15\uD654\uBE44\uC6A9 -20%", "assets/ui/jobs/knight_commander.png", new Color(113, 154, 197)),
+        MAGITECH_ENGINEER(2, "\uB9C8\uB3C4\uACF5\uD559\uC790", "\uD0C0\uC6CC \uACF5\uACA9\uB825 +20%", "assets/ui/jobs/magitech_engineer.png", new Color(170, 118, 230));
+
+        final int index;
+        final String label;
+        final String summary;
+        final String imagePath;
+        final Color accentColor;
+
+        Job(int index, String label, String summary, String imagePath, Color accentColor) {
+            this.index = index;
+            this.label = label;
+            this.summary = summary;
+            this.imagePath = imagePath;
+            this.accentColor = accentColor;
+        }
+    }
 
     private final int[][] mapGrid = {
             {0, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0},
@@ -97,6 +124,9 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
     }
     private final List<Quest> questList = new ArrayList<>();
     private boolean showQuestUI = false;
+    private boolean showJobSelectUI = true;
+    private Job selectedJob = null;
+    private Job hoveredJob = null;
     private String toastMsg = "";
     private int toastTimer = 0;
 
@@ -129,6 +159,11 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
     private final Rectangle speedButton = new Rectangle(448, 12, 78, 30);
     private final Rectangle questButton = new Rectangle(360, 12, 78, 30);
     private final Rectangle closeQuestBtn = new Rectangle(PANEL_W / 2 - 60, PANEL_H - 120, 120, 40);
+    private final Rectangle[] jobButtons = {
+            new Rectangle(15, 215, 160, 290),
+            new Rectangle(190, 215, 160, 290),
+            new Rectangle(365, 215, 160, 290)
+    };
 
     private final Rectangle sellButton = new Rectangle(172, 656, 70, 34);
     private final Rectangle restartButton = new Rectangle(PANEL_W / 2 - 80, PANEL_H / 2 + 60, 160, 45);
@@ -146,6 +181,8 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
     private BufferedImage pathCurveTexture;
     private BufferedImage pathCrossTexture;
     private final BufferedImage[] towerSprites = new BufferedImage[6];
+    private final BufferedImage[] jobImages = new BufferedImage[3];
+    private final BufferedImage[] jobImagesGray = new BufferedImage[3];
     private final BufferedImage[][] monsterDirectionalSprites = new BufferedImage[4][3];
 
     private Timer gameLoop;
@@ -191,6 +228,7 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
 
         loadAssets();
         addMouseListener(this);
+        addMouseMotionListener(this);
 
         gameLoop = new Timer(50, this);
         gameLoop.start();
@@ -204,20 +242,28 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
 
     // ★ 동적 업그레이드 비용 계산
     private int getUpgCost(int typeIndex) {
-        return 20 + (upgradeLevels[typeIndex] * 10);
+        int baseCost = 20 + (upgradeLevels[typeIndex] * 10);
+        if (selectedJob == Job.KNIGHT_COMMANDER) {
+            return Math.max(1, (int) Math.ceil(baseCost * (1.0 - KNIGHT_UPGRADE_DISCOUNT_RATE)));
+        }
+        return baseCost;
     }
 
     private int getHiddenUpgCost() {
-        return 50 + (hiddenUpgradeLevel * 20);
+        int baseCost = 50 + (hiddenUpgradeLevel * 20);
+        if (selectedJob == Job.KNIGHT_COMMANDER) {
+            return Math.max(1, (int) Math.ceil(baseCost * (1.0 - KNIGHT_UPGRADE_DISCOUNT_RATE)));
+        }
+        return baseCost;
     }
 
     private void initQuests() {
         questList.clear();
-        questList.add(new Quest("나무가 자란다!", "자연(풀) 타워 6개 모으기", 150));
-        questList.add(new Quest("불바다", "화염(불) 타워 6개 모으기", 150));
-        questList.add(new Quest("대홍수", "물 타워 6개 모으기", 150));
-        questList.add(new Quest("전설의 시작", "스페셜(히든) 타워 1개 제작", 300));
-        questList.add(new Quest("타워 콜렉터", "맵에 타워 15개 이상 건설", 200));
+        questList.add(new Quest("\uB098\uBB34\uAC00 \uC790\uB780\uB2E4!", "\uC790\uC5F0(\uD480) \uD0C0\uC6CC 6\uAC1C \uBAA8\uC73C\uAE30", 150));
+        questList.add(new Quest("\uBD88\uBC14\uB2E4", "\uD654\uC5FC(\uBD88) \uD0C0\uC6CC 6\uAC1C \uBAA8\uC73C\uAE30", 150));
+        questList.add(new Quest("\uB300\uD64D\uC218", "\uBB3C \uD0C0\uC6CC 6\uAC1C \uBAA8\uC73C\uAE30", 150));
+        questList.add(new Quest("\uC804\uC124\uC758 \uC2DC\uC791", "\uC2A4\uD398\uC15C(\uD788\uB4E0) \uD0C0\uC6CC 1\uAC1C \uC81C\uC791", 300));
+        questList.add(new Quest("\uD0C0\uC6CC \uCF5C\uB809\uD130", "\uB9F5\uC5D0 \uD0C0\uC6CC 15\uAC1C \uC774\uC0C1 \uAC74\uC124", 200));
     }
 
     private void resetGame() {
@@ -230,6 +276,9 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
         currentSpeed = 1;
         tick = 0;
         showQuestUI = false;
+        showJobSelectUI = true;
+        selectedJob = null;
+        hoveredJob = null;
         toastTimer = 0;
         gameWon = false;
         gameLoop.setDelay(50);
@@ -265,6 +314,10 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
         towerSprites[3] = loadImage("assets/towers/arcane.png");
         towerSprites[4] = loadImage("assets/towers/shadow.png");
         towerSprites[5] = loadImage("assets/towers/chaos.png");
+        for (Job job : Job.values()) {
+            jobImages[job.index] = loadImage(job.imagePath);
+            jobImagesGray[job.index] = toGray(jobImages[job.index]);
+        }
 
         loadMonsterSpriteSet(0, "fire", "assets/monsters/org/fire.png");
         loadMonsterSpriteSet(1, "water", "assets/monsters/org/water.png");
@@ -463,6 +516,19 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
         int mouseX = e.getX();
         int mouseY = e.getY();
 
+        if (showJobSelectUI) {
+            Job picked = findJobByImagePoint(mouseX, mouseY);
+            if (picked != null) {
+                selectedJob = picked;
+                showJobSelectUI = false;
+                hoveredJob = null;
+                showToast("\uC9C1\uC5C5 \uC120\uD0DD: " + picked.label + " (" + picked.summary + ")", 70);
+                repaint();
+                return;
+            }
+            return;
+        }
+
         if (life <= 0 || gameWon) {
             if (restartButton.contains(mouseX, mouseY)) {
                 resetGame();
@@ -549,7 +615,23 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
     @Override
     public void mouseEntered(MouseEvent e) { }
     @Override
-    public void mouseExited(MouseEvent e) { }
+    public void mouseExited(MouseEvent e) {
+        if (hoveredJob != null) {
+            hoveredJob = null;
+            repaint();
+        }
+    }
+    @Override
+    public void mouseDragged(MouseEvent e) { }
+    @Override
+    public void mouseMoved(MouseEvent e) {
+        if (!showJobSelectUI) return;
+        Job nextHover = findJobByImagePoint(e.getX(), e.getY());
+        if (nextHover != hoveredJob) {
+            hoveredJob = nextHover;
+            repaint();
+        }
+    }
 
     private boolean hasSelectedTile() {
         return selectedTileX >= 0 && selectedTileY >= 0;
@@ -645,10 +727,10 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
                 if (random.nextInt(100) < 30) {
                     int rIndex = random.nextInt(HIDDEN_ELEMENTS.length);
                     setTower(x, y, HIDDEN_ELEMENTS[rIndex], HIDDEN_COLORS[rIndex], 4, -1);
-                    showToast("✨ 히든 강림 성공!!", 60);
+                    showToast("\u2728 \uD788\uB4E0 \uAC15\uB9BC \uC131\uACF5!!", 60);
                 } else {
                     // 실패 시 본체(x, y)는 지우지 않고 유지! 알림만 띄움
-                    showToast("💥 합성 실패! 재료 타워가 파괴되었습니다.", 60);
+                    showToast("\uD83D\uDCA5 \uD569\uC131 \uC2E4\uD328! \uC7AC\uB8CC \uD0C0\uC6CC\uAC00 \uD30C\uAD34\uB418\uC5C8\uC2B5\uB2C8\uB2E4.", 60);
                 }
                 clearTile(sx, sy); // 재료는 성공/실패 무관하게 무조건 소모
                 checkQuests();
@@ -687,7 +769,7 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
     private void completeQuest(Quest q) {
         q.completed = true;
         gold += q.reward;
-        showToast("\uD83C\uDF89 퀘스트 달성: " + q.name + " (+" + q.reward + "G)", 60);
+        showToast("\uD83C\uDF89 \uD018\uC2A4\uD2B8 \uB2EC\uC131: " + q.name + " (+" + q.reward + "G)", 60);
     }
 
     private Object[] createMonster(String element, Color color, int hp, boolean isBoss) {
@@ -761,6 +843,11 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
 
     @Override
     public void actionPerformed(ActionEvent e) {
+        if (showJobSelectUI) {
+            if (toastTimer > 0) toastTimer--;
+            repaint();
+            return;
+        }
         if (life <= 0 || gameWon) return; // ★ 승리 시 게임 정지
         tick++;
         waveTimer--;
@@ -769,9 +856,12 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
 
         if (waveTimer <= 0) {
             // ★ 웨이브 클리어 보너스 지급
-            int bonus = 60;
+            int bonus = BASE_WAVE_CLEAR_GOLD;
+            if (selectedJob == Job.NOBLE) {
+                bonus += (int) Math.floor(BASE_WAVE_CLEAR_GOLD * NOBLE_WAVE_BONUS_RATE);
+            }
             gold += bonus;
-            showToast("\uD83C\uDF0A 웨이브 클리어! 보너스 +" + bonus + "G", 40);
+            showToast("\uD83C\uDF0A \uC6E8\uC774\uBE0C \uD074\uB9AC\uC5B4! \uBCF4\uB108\uC2A4 +" + bonus + "G", 40);
 
             wave++;
             // ★ 100웨이브 달성 체크
@@ -847,6 +937,9 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
                     multiplier *= calcElementMultiplier(tileTowerType[y][x], targetElement);
                 }
 
+                if (selectedJob == Job.MAGITECH_ENGINEER) {
+                    multiplier *= (1.0 + ENGINEER_DAMAGE_BONUS_RATE);
+                }
                 target[M_HP] = (int) target[M_HP] - (int) (damage * multiplier);
                 tileCooldown[y][x] = 20;
 
@@ -932,23 +1025,23 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
 
             g2.setColor(new Color(235, 240, 250));
             g2.setFont(new Font("Malgun Gothic", Font.BOLD, 20));
-            drawCentered(g2, "=== 퀘스트 목록 ===", PANEL_W / 2, qy + 40);
+            drawCentered(g2, "=== \uD018\uC2A4\uD2B8 \uBAA9\uB85D ===", PANEL_W / 2, qy + 40);
 
             int listY = qy + 80;
             for (Quest q : questList) {
                 g2.setColor(q.completed ? new Color(100, 150, 100) : new Color(200, 200, 200));
                 g2.setFont(new Font("Malgun Gothic", Font.BOLD, 14));
-                String status = q.completed ? "[완료]" : "[진행중]";
+                String status = q.completed ? "[\uC644\uB8CC]" : "[\uC9C4\uD589\uC911]";
                 g2.drawString(status + " " + q.name, qx + 20, listY);
 
                 g2.setColor(q.completed ? new Color(100, 120, 100) : new Color(150, 150, 150));
                 g2.setFont(new Font("Malgun Gothic", Font.PLAIN, 12));
-                g2.drawString("- " + q.desc + " (보상: " + q.reward + "G)", qx + 20, listY + 20);
+                g2.drawString("- " + q.desc + " (\uBCF4\uC0C1: " + q.reward + "G)", qx + 20, listY + 20);
 
                 listY += 50;
             }
 
-            paintRoundedButton(g2, closeQuestBtn, new Color(215, 74, 74), "닫기");
+            paintRoundedButton(g2, closeQuestBtn, new Color(215, 74, 74), "\uB2EB\uAE30");
         }
 
         // ★ 승리 및 게임 오버 화면 처리
@@ -963,7 +1056,7 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
 
                 g2.setColor(new Color(235, 240, 250));
                 g2.setFont(new Font("Malgun Gothic", Font.PLAIN, 16));
-                drawCentered(g2, "100 라운드를 모두 방어했습니다!", getWidth() / 2, getHeight() / 2 + 20);
+                drawCentered(g2, "100 \uB77C\uC6B4\uB4DC\uB97C \uBAA8\uB450 \uBC29\uC5B4\uD588\uC2B5\uB2C8\uB2E4!", getWidth() / 2, getHeight() / 2 + 20);
             } else {
                 g2.setColor(new Color(255, 105, 105));
                 g2.setFont(new Font("Malgun Gothic", Font.BOLD, 42));
@@ -982,7 +1075,96 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
             drawCentered(g2, "\uB2E4\uC2DC \uC2DC\uC791", restartButton.x + restartButton.width / 2, restartButton.y + restartButton.height / 2 + 6);
         }
 
+        if (showJobSelectUI) {
+            paintJobSelectionOverlay(g2);
+        }
         g2.dispose();
+    }
+
+    private void paintJobSelectionOverlay(Graphics2D g2) {
+        g2.setColor(new Color(8, 10, 15, 210));
+        g2.fillRect(0, 0, getWidth(), getHeight());
+
+        // Keep job card/image size as-is; expand only the backdrop modal area.
+        int modalW = 534;
+        int modalH = 470;
+        int modalX = (PANEL_W - modalW) / 2;
+        int modalY = 120;
+        paintCard(g2, modalX, modalY, modalW, modalH, new Color(23, 31, 46), new Color(95, 112, 140));
+
+        g2.setColor(new Color(238, 243, 252));
+        g2.setFont(new Font("Malgun Gothic", Font.BOLD, 22));
+        drawCentered(g2, "\uC9C1\uC5C5 \uC120\uD0DD", PANEL_W / 2, modalY + 44);
+        g2.setFont(new Font("Malgun Gothic", Font.PLAIN, 12));
+        g2.setColor(new Color(177, 191, 213));
+        drawCentered(g2, "\uC774\uBBF8\uC9C0\uB97C \uD074\uB9AD\uD558\uBA74 \uC9C1\uC5C5\uC774 \uC120\uD0DD\uB429\uB2C8\uB2E4.", PANEL_W / 2, modalY + 68);
+
+        for (Job job : Job.values()) {
+            paintJobCard(g2, job);
+        }
+    }
+
+    private void paintJobCard(Graphics2D g2, Job job) {
+        Rectangle card = jobButtons[job.index];
+        Rectangle imageRect = getJobImageRect(job);
+        boolean dimmed = hoveredJob != null && hoveredJob != job;
+        Color borderColor = dimmed ? new Color(120, 130, 146) : job.accentColor;
+
+        g2.setColor(new Color(18, 25, 38));
+        g2.fillRoundRect(card.x, card.y, card.width, card.height, 12, 12);
+        g2.setColor(borderColor);
+        g2.drawRoundRect(card.x, card.y, card.width, card.height, 12, 12);
+
+        BufferedImage image = dimmed ? jobImagesGray[job.index] : jobImages[job.index];
+        if (image != null) {
+            g2.drawImage(image, imageRect.x, imageRect.y, imageRect.width, imageRect.height, null);
+        } else {
+            g2.setColor(new Color(38, 50, 68));
+            g2.fillRoundRect(imageRect.x, imageRect.y, imageRect.width, imageRect.height, 10, 10);
+            g2.setColor(new Color(215, 224, 238));
+            g2.setFont(new Font("Malgun Gothic", Font.BOLD, 14));
+            drawCentered(g2, job.label, imageRect.x + imageRect.width / 2, imageRect.y + imageRect.height / 2 + 6);
+        }
+
+        if (dimmed) {
+            g2.setColor(new Color(0, 0, 0, 80));
+            g2.fillRoundRect(imageRect.x, imageRect.y, imageRect.width, imageRect.height, 10, 10);
+        }
+
+        g2.setColor(dimmed ? new Color(200, 206, 216) : new Color(242, 246, 253));
+        g2.setFont(new Font("Malgun Gothic", Font.BOLD, 18));
+        drawCentered(g2, job.label, card.x + card.width / 2, card.y + 216);
+
+        g2.setColor(dimmed ? new Color(144, 153, 170) : new Color(190, 202, 223));
+        g2.setFont(new Font("Malgun Gothic", Font.PLAIN, 12));
+        drawCentered(g2, job.summary, card.x + card.width / 2, card.y + 238);
+    }
+
+    private String getSelectedJobLabel() {
+        if (selectedJob == null) return "\uBBF8\uC120\uD0DD";
+        return selectedJob.label;
+    }
+
+    private Rectangle getJobImageRect(Job job) {
+        Rectangle card = jobButtons[job.index];
+        return new Rectangle(card.x + 12, card.y + 12, card.width - 24, 180);
+    }
+
+    private Job findJobByImagePoint(int x, int y) {
+        for (Job job : Job.values()) {
+            if (getJobImageRect(job).contains(x, y)) {
+                return job;
+            }
+        }
+        return null;
+    }
+
+    private BufferedImage toGray(BufferedImage src) {
+        if (src == null) return null;
+        BufferedImage gray = new BufferedImage(src.getWidth(), src.getHeight(), BufferedImage.TYPE_INT_ARGB);
+        ColorConvertOp op = new ColorConvertOp(ColorSpace.getInstance(ColorSpace.CS_GRAY), null);
+        op.filter(src, gray);
+        return gray;
     }
 
     private void paintBackground(Graphics2D g2) {
@@ -1024,7 +1206,8 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
         g2.setColor(monsters.size() >= 80 ? new Color(255, 115, 115) : new Color(165, 207, 255));
         g2.drawString(
                 "\uD544\uB4DC " + monsters.size() + "/" + MAX_FIELD_MONSTERS
-                        + " | \uC0DD\uBA85 " + life + " | \uACE8\uB4DC " + gold,
+                        + " | \uC0DD\uBA85 " + life + " | \uACE8\uB4DC " + gold
+                        + " | \uC9C1\uC5C5 " + getSelectedJobLabel(),
                 18, 45
         );
 
@@ -1032,7 +1215,7 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
                 g2,
                 questButton,
                 new Color(100, 150, 100),
-                "퀘스트"
+                "\uD018\uC2A4\uD2B8"
         );
 
         paintRoundedButton(
@@ -1402,7 +1585,9 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
 
         if (tier == 4) {
             // ★ 퍼센트 증가된 공격력 반영
-            int atk = (int) (800 * (1.0 + (hiddenUpgradeLevel * 0.4)));
+            double atkMultiplier = 1.0 + (hiddenUpgradeLevel * 0.4);
+            if (selectedJob == Job.MAGITECH_ENGINEER) atkMultiplier *= (1.0 + ENGINEER_DAMAGE_BONUS_RATE);
+            int atk = (int) (800 * atkMultiplier);
             int range = 200 + (hiddenUpgradeLevel * 20);
             g2.setColor(new Color(255, 232, 135));
             g2.drawString("\uC120\uD0DD: " + towerType + " \uC2A4\uD398\uC15C \uD0C0\uC6CC", 20, BOTTOM_PANEL_Y + 76);
@@ -1411,7 +1596,9 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
         } else {
             int typeIdx = tileTypeIndex[selectedTileY][selectedTileX];
             int baseAtk = tier == 1 ? 25 : (tier == 2 ? 60 : 150);
-            int atk = (int) (baseAtk * (1.0 + (upgradeLevels[typeIdx] * 0.3)));
+            double atkMultiplier = 1.0 + (upgradeLevels[typeIdx] * 0.3);
+            if (selectedJob == Job.MAGITECH_ENGINEER) atkMultiplier *= (1.0 + ENGINEER_DAMAGE_BONUS_RATE);
+            int atk = (int) (baseAtk * atkMultiplier);
             int range = 120 + (upgradeLevels[typeIdx] * 15);
             g2.drawString(
                     "\uC120\uD0DD: " + towerType + " \uD0C0\uC6CC (\uD2F0\uC5B4 " + tier + ")",
