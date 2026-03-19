@@ -23,6 +23,10 @@ public class GameContext {
     public int tick = 0;
     public boolean gameWon = false;
 
+    // 알림 시스템 통합
+    public String toastMsg = "";
+    public int toastTimer = 0;
+
     public final int[] upgradeLevels = {0, 0, 0};
     public int hiddenUpgradeLevel = 0;
 
@@ -59,6 +63,11 @@ public class GameContext {
         }
     }
 
+    public void showToast(String msg, int duration) {
+        this.toastMsg = msg;
+        this.toastTimer = duration;
+    }
+
     public void reset() {
         life = 20;
         gold = 80;
@@ -68,6 +77,8 @@ public class GameContext {
         spawnedThisWave = 0;
         tick = 0;
         gameWon = false;
+        toastMsg = "";
+        toastTimer = 0;
         for (int i = 0; i < 3; i++) upgradeLevels[i] = 0;
         hiddenUpgradeLevel = 0;
         monsters.clear();

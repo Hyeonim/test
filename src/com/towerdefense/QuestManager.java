@@ -48,6 +48,6 @@ public class QuestManager {
     private void completeQuest(Quest q) {
         q.completed = true;
         ctx.gold += q.reward;
-        // 알림 로직은 나중에 처리
+        ctx.showToast("🎉 퀘스트 달성: " + q.name + " (+" + q.reward + "G)", 60);
     }
 }

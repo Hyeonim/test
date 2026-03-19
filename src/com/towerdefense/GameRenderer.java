@@ -9,13 +9,15 @@ import static com.towerdefense.GameConstants.*;
 public class GameRenderer {
     private final GameContext ctx;
     private final AssetManager assetManager;
+    private final TowerManager towerManager;
 
-    public GameRenderer(GameContext ctx, AssetManager assetManager) {
+    public GameRenderer(GameContext ctx, AssetManager assetManager, TowerManager towerManager) {
         this.ctx = ctx;
         this.assetManager = assetManager;
+        this.towerManager = towerManager;
     }
 
-    public void paint(Graphics2D g2, int panelW, int panelH, int toastTimer, String toastMsg, boolean showQuestUI, boolean showJobSelectUI, Job hoveredJob, Rectangle[] jobButtons, Rectangle closeQuestBtn, Rectangle sellButton, Rectangle restartButton, Rectangle[] upgradeButtons) {
+    public void paint(Graphics2D g2, int panelW, int panelH, boolean showQuestUI, boolean showJobSelectUI, Job hoveredJob, Rectangle[] jobButtons, Rectangle closeQuestBtn, Rectangle sellButton, Rectangle restartButton, Rectangle[] upgradeButtons) {
         paintBackground(g2, panelW, panelH);
         paintTopHud(g2);
         paintPath(g2);
@@ -24,8 +26,8 @@ public class GameRenderer {
         paintLasers(g2);
         paintBottomPanel(g2, sellButton, upgradeButtons);
 
-        if (toastTimer > 0) {
-            drawToast(g2, toastMsg, panelW);
+        if (ctx.toastTimer > 0) {
+            drawToast(g2, ctx.toastMsg, panelW);
         }
 
         if (showQuestUI) {
@@ -104,7 +106,7 @@ public class GameRenderer {
                     g2.drawRoundRect(drawX + 1, drawY + 1, TILE_SIZE - 2, TILE_SIZE - 2, 8, 8);
                     
                     if (tile.hasTower()) {
-                        int range = tile.tower.tier == 4 ? 200 + ctx.hiddenUpgradeLevel * 20 : 120 + ctx.upgradeLevels[tile.tower.typeIndex] * 15;
+                        int range = (int) (tile.tower.tier == 4 ? 200 + ctx.hiddenUpgradeLevel * 20 : 120 + ctx.upgradeLevels[tile.tower.typeIndex] * 15);
                         g2.setColor(new Color(170, 240, 210, 45));
                         g2.fillOval(drawX + 22 - range, drawY + 22 - range, range * 2, range * 2);
                     }
@@ -197,14 +199,14 @@ public class GameRenderer {
             paintRoundedButton(g2, sellBtn, new Color(215, 74, 74), "판매 +" + t.tier * 5);
         } else if (ctx.selectedMonster != null) {
             g2.setColor(new Color(235, 240, 250));
-            g2.drawString("선택: " + (ctx.selectedMonster.isBoss ? "[보스] " : "") + toKoreanLabel(ctx.selectedMonster.element), 20, BOTTOM_PANEL_Y + 80);
+            g2.drawString("선택: [보스] " + toKoreanLabel(ctx.selectedMonster.element), 20, BOTTOM_PANEL_Y + 80);
             g2.drawString("HP " + ctx.selectedMonster.hp + " / " + ctx.selectedMonster.maxHp, 20, BOTTOM_PANEL_Y + 100);
         }
 
         for (int i = 0; i < 3; i++) {
-            paintTwoLineButton(g2, upgBtns[i], ELEMENT_COLORS[i], ELEMENT_LABELS[i] + " Lv." + ctx.upgradeLevels[i], "(" + getUpgCost(i) + "G)");
+            paintTwoLineButton(g2, upgBtns[i], ELEMENT_COLORS[i], ELEMENT_LABELS[i] + " Lv." + ctx.upgradeLevels[i], "(" + towerManager.getUpgCost(i) + "G)");
         }
-        paintTwoLineButton(g2, upgBtns[3], new Color(148, 72, 210), "스페셜 Lv." + ctx.hiddenUpgradeLevel, "(" + getHiddenUpgCost() + "G)");
+        paintTwoLineButton(g2, upgBtns[3], new Color(148, 72, 210), "스페셜 Lv." + ctx.hiddenUpgradeLevel, "(" + towerManager.getHiddenUpgCost() + "G)");
     }
 
     private void drawTowerInfo(Graphics2D g2, Tower tower) {
@@ -232,9 +234,6 @@ public class GameRenderer {
         }
     }
 
-    private int getUpgCost(int i) { int b = 20 + ctx.upgradeLevels[i] * 10; return ctx.selectedJob == Job.KNIGHT_COMMANDER ? (int)Math.ceil(b * 0.8) : b; }
-    private int getHiddenUpgCost() { int b = 50 + ctx.hiddenUpgradeLevel * 20; return ctx.selectedJob == Job.KNIGHT_COMMANDER ? (int)Math.ceil(b * 0.8) : b; }
-
     private void drawToast(Graphics2D g2, String msg, int w) {
         g2.setColor(new Color(0, 0, 0, 180)); g2.fillRoundRect(w / 2 - 140, 80, 280, 40, 20, 20);
         g2.setColor(Color.YELLOW); drawCentered(g2, msg, w / 2, 105);
@@ -255,14 +254,19 @@ public class GameRenderer {
     private void paintJobSelectionOverlay(Graphics2D g2, int w, int h, Rectangle[] jobBtns, Job hovered) {
         g2.setColor(new Color(8, 10, 15, 210)); g2.fillRect(0, 0, w, h);
         paintCard(g2, (w - 534) / 2, 120, 534, 470, new Color(23, 31, 46), new Color(95, 112, 140));
+        g2.setColor(Color.WHITE); g2.setFont(new Font("Malgun Gothic", Font.BOLD, 22)); drawCentered(g2, "직업 선택", w / 2, 164);
+        g2.setFont(new Font("Malgun Gothic", Font.PLAIN, 12)); g2.setColor(new Color(177, 191, 213)); drawCentered(g2, "이미지를 클릭하면 직업이 선택됩니다.", w / 2, 188);
+
         for (Job j : Job.values()) {
             Rectangle r = jobBtns[j.index]; Rectangle ir = getJobImageRect(r);
             boolean d = hovered != null && hovered != j;
+            g2.setColor(new Color(18, 25, 38)); g2.fillRoundRect(r.x, r.y, r.width, r.height, 12, 12);
             g2.setColor(d ? Color.DARK_GRAY : j.accentColor); g2.drawRoundRect(r.x, r.y, r.width, r.height, 12, 12);
             BufferedImage img = d ? assetManager.jobImagesGray[j.index] : assetManager.jobImages[j.index];
             if (img != null) g2.drawImage(img, ir.x, ir.y, ir.width, ir.height, null);
             else { g2.setColor(Color.GRAY); g2.fillRect(ir.x, ir.y, ir.width, ir.height); }
-            g2.setColor(Color.WHITE); drawCentered(g2, j.label, r.x + r.width / 2, r.y + 216);
+            g2.setColor(Color.WHITE); g2.setFont(new Font("Malgun Gothic", Font.BOLD, 18)); drawCentered(g2, j.label, r.x + r.width / 2, r.y + 216);
+            g2.setColor(d ? Color.GRAY : new Color(190, 202, 223)); g2.setFont(new Font("Malgun Gothic", Font.PLAIN, 12)); drawCentered(g2, j.summary, r.x + r.width / 2, r.y + 238);
         }
     }
 
@@ -275,8 +279,8 @@ public class GameRenderer {
 
     private Rectangle getJobImageRect(Rectangle r) { return new Rectangle(r.x + 12, r.y + 12, r.width - 24, 180); }
     private void paintCard(Graphics2D g2, int x, int y, int w, int h, Color f, Color b) { g2.setColor(f); g2.fillRoundRect(x, y, w, h, 14, 14); g2.setColor(b); g2.drawRoundRect(x, y, w, h, 14, 14); }
-    private void paintRoundedButton(Graphics2D g2, Rectangle r, Color f, String l) { g2.setColor(f); g2.fillRoundRect(r.x, r.y, r.width, r.height, 10, 10); g2.setColor(Color.WHITE); drawCentered(g2, l, r.x + r.width / 2, r.y + r.height / 2 + 5); }
-    private void paintTwoLineButton(Graphics2D g2, Rectangle r, Color f, String l1, String l2) { g2.setColor(f); g2.fillRoundRect(r.x, r.y, r.width, r.height, 10, 10); g2.setColor(Color.WHITE); drawCentered(g2, l1, r.x + r.width / 2, r.y + r.height / 2 - 2); drawCentered(g2, l2, r.x + r.width / 2, r.y + r.height / 2 + 10); }
+    private void paintRoundedButton(Graphics2D g2, Rectangle r, Color f, String l) { g2.setColor(f); g2.fillRoundRect(r.x, r.y, r.width, r.height, 10, 10); g2.setColor(Color.WHITE); g2.drawRoundRect(r.x, r.y, r.width, r.height, 10, 10); drawCentered(g2, l, r.x + r.width / 2, r.y + r.height / 2 + 5); }
+    private void paintTwoLineButton(Graphics2D g2, Rectangle r, Color f, String l1, String l2) { g2.setColor(f); g2.fillRoundRect(r.x, r.y, r.width, r.height, 10, 10); g2.setColor(Color.WHITE); g2.drawRoundRect(r.x, r.y, r.width, r.height, 10, 10); drawCentered(g2, l1, r.x + r.width / 2, r.y + r.height / 2 - 2); drawCentered(g2, l2, r.x + r.width / 2, r.y + r.height / 2 + 10); }
     private void drawCentered(Graphics2D g2, String t, int x, int y) { FontMetrics fm = g2.getFontMetrics(); g2.drawString(t, x - fm.stringWidth(t) / 2, y); }
     private String toKoreanLabel(String e) { if ("Fire".equals(e)) return "화염"; if ("Water".equals(e)) return "물"; if ("Nature".equals(e)) return "자연"; if ("Arcane".equals(e)) return "비전"; if ("Shadow".equals(e)) return "그림자"; if ("Chaos".equals(e)) return "혼돈"; if ("Boss".equals(e)) return "보스"; return e; }
 }

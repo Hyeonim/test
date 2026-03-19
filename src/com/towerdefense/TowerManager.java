@@ -34,12 +34,12 @@ public class TowerManager {
                 t1.tower = null;
                 questManager.checkQuests();
             } else if (t1.tower.tier == 3) {
-                // 원본의 30% 확률 및 성공/실패 로직 복구
                 if (ctx.random.nextInt(100) < 30) {
                     int rIndex = ctx.random.nextInt(HIDDEN_ELEMENTS.length);
                     t2.tower = new Tower(HIDDEN_ELEMENTS[rIndex], HIDDEN_COLORS[rIndex], 4, -1);
+                    ctx.showToast("✨ 히든 강림 성공!!", 60);
                 } else {
-                    // 합성 실패 시 t1(재료)만 파괴되고 t2는 유지됨 (원본 로직)
+                    ctx.showToast("💥 합성 실패! 재료 타워가 파괴되었습니다.", 60);
                 }
                 t1.tower = null;
                 questManager.checkQuests();

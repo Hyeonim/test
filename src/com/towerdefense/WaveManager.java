@@ -20,8 +20,7 @@ public class WaveManager {
                 bonus += (int) Math.floor(BASE_WAVE_CLEAR_GOLD * NOBLE_WAVE_BONUS_RATE);
             }
             ctx.gold += bonus;
-            // Toast 알림은 UI 계층에서 처리하도록 나중에 이벤트를 발생시키거나 ctx에 메시지를 담을 수 있음
-            // 여기서는 일단 ctx 상태만 변경
+            ctx.showToast("🌊 웨이브 클리어! 보너스 +" + bonus + "G", 40);
 
             ctx.wave++;
             if (ctx.wave > MAX_WAVE) {

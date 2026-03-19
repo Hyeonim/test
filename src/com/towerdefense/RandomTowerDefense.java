@@ -19,14 +19,12 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
     private final TowerManager towerManager = new TowerManager(ctx, questManager);
     private final WaveManager waveManager = new WaveManager(ctx, monsterManager);
     
-    private final GameRenderer renderer = new GameRenderer(ctx, assetManager);
+    private final GameRenderer renderer = new GameRenderer(ctx, assetManager, towerManager);
     private final Timer gameLoop;
 
     private boolean showQuestUI = false;
     private boolean showJobSelectUI = true;
     private Job hoveredJob = null;
-    private String toastMsg = "";
-    private int toastTimer = 0;
 
     private final Rectangle speedButton = new Rectangle(448, 12, 78, 30);
     private final Rectangle questButton = new Rectangle(360, 12, 78, 30);
@@ -65,7 +63,6 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
         questManager.initQuests();
         showQuestUI = false;
         showJobSelectUI = true;
-        toastTimer = 0;
         
         for (int y = 0; y < GRID_SIZE; y++) {
             for (int x = 0; x < GRID_SIZE; x++) {
@@ -74,22 +71,17 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
         }
     }
 
-    private void showToast(String msg, int duration) {
-        toastMsg = msg;
-        toastTimer = duration;
-    }
-
     @Override
     public void actionPerformed(ActionEvent e) {
         if (showJobSelectUI) {
-            if (toastTimer > 0) toastTimer--;
+            if (ctx.toastTimer > 0) ctx.toastTimer--;
             repaint();
             return;
         }
         if (ctx.life <= 0 || ctx.gameWon) return;
 
         ctx.tick++;
-        if (toastTimer > 0) toastTimer--;
+        if (ctx.toastTimer > 0) ctx.toastTimer--;
 
         waveManager.update();
         monsterManager.update();
@@ -131,7 +123,7 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
-        renderer.paint((Graphics2D) g, getWidth(), getHeight(), toastTimer, toastMsg, showQuestUI, showJobSelectUI, hoveredJob, jobButtons, closeQuestBtn, sellButton, restartButton, upgradeButtons);
+        renderer.paint((Graphics2D) g, getWidth(), getHeight(), showQuestUI, showJobSelectUI, hoveredJob, jobButtons, closeQuestBtn, sellButton, restartButton, upgradeButtons);
     }
 
     @Override
@@ -143,7 +135,7 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
                 if (getJobImageRect(job).contains(mx, my)) {
                     ctx.selectedJob = job;
                     showJobSelectUI = false;
-                    showToast("직업 선택: " + job.label + " (" + job.summary + ")", 70);
+                    ctx.showToast("직업 선택: " + job.label + " (" + job.summary + ")", 70);
                     return;
                 }
             }
@@ -187,7 +179,6 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
     }
 
     private void handleMapClick(int mx, int my) {
-        // 몬스터 클릭 타겟팅 로직 복구
         boolean clickedMonster = false;
         for (int i = ctx.monsters.size() - 1; i >= 0; i--) {
             Monster m = ctx.monsters.get(i);
