@@ -74,14 +74,14 @@ public class RandomTowerDefense extends JPanel implements ActionListener, MouseL
     @Override
     public void actionPerformed(ActionEvent e) {
         if (showJobSelectUI) {
-            if (ctx.toastTimer > 0) ctx.toastTimer--;
+            ctx.updatePresentationTimers();
             repaint();
             return;
         }
         if (ctx.life <= 0 || ctx.gameWon) return;
 
         ctx.tick++;
-        if (ctx.toastTimer > 0) ctx.toastTimer--;
+        ctx.updatePresentationTimers();
 
         waveManager.update();
         monsterManager.update();

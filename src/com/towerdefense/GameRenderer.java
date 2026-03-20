@@ -18,29 +18,41 @@ public class GameRenderer {
     }
 
     public void paint(Graphics2D g2, int panelW, int panelH, boolean showQuestUI, boolean showJobSelectUI, Job hoveredJob, Rectangle[] jobButtons, Rectangle closeQuestBtn, Rectangle sellButton, Rectangle restartButton, Rectangle[] upgradeButtons) {
-        paintBackground(g2, panelW, panelH);
-        paintTopHud(g2);
-        paintPath(g2);
-        paintGrid(g2);
-        paintMonsters(g2);
-        paintLasers(g2);
-        paintBottomPanel(g2, sellButton, upgradeButtons);
+        Graphics2D scene = (Graphics2D) g2.create();
+        applyBossScreenShake(scene);
+        paintBackground(scene, panelW, panelH);
+        paintTopHud(scene);
+        paintPath(scene);
+        paintGrid(scene);
+        paintMonsters(scene);
+        paintLasers(scene);
+        paintBottomPanel(scene, sellButton, upgradeButtons);
+        paintBossPresentation(scene, panelW, panelH);
 
         if (ctx.toastTimer > 0) {
-            drawToast(g2, ctx.toastMsg, panelW);
+            drawToast(scene, ctx.toastMsg, panelW);
         }
 
         if (showQuestUI) {
-            paintQuestOverlay(g2, panelW, panelH, closeQuestBtn);
+            paintQuestOverlay(scene, panelW, panelH, closeQuestBtn);
         }
 
         if (ctx.life <= 0 || ctx.gameWon) {
-            paintGameOverOverlay(g2, panelW, panelH, restartButton);
+            paintGameOverOverlay(scene, panelW, panelH, restartButton);
         }
 
         if (showJobSelectUI) {
-            paintJobSelectionOverlay(g2, panelW, panelH, jobButtons, hoveredJob);
+            paintJobSelectionOverlay(scene, panelW, panelH, jobButtons, hoveredJob);
         }
+        scene.dispose();
+    }
+
+    private void applyBossScreenShake(Graphics2D g2) {
+        if (ctx.bossScreenShakeTimer <= 0) return;
+        int intensity = Math.max(1, ctx.bossScreenShakeTimer / 4);
+        int offsetX = (int) Math.round(Math.sin(ctx.tick * 0.9) * intensity * 1.6);
+        int offsetY = (int) Math.round(Math.cos(ctx.tick * 1.2) * intensity);
+        g2.translate(offsetX, offsetY);
     }
 
     private void paintBackground(Graphics2D g2, int w, int h) {
@@ -87,6 +99,121 @@ public class GameRenderer {
         g2.setStroke(new BasicStroke(9f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
         for (int i = 0; i < ctx.waypoints.length - 1; i++) {
             g2.drawLine(ctx.waypoints[i][0], ctx.waypoints[i][1], ctx.waypoints[i + 1][0], ctx.waypoints[i + 1][1]);
+        }
+    }
+
+    private void paintBossPresentation(Graphics2D g2, int panelW, int panelH) {
+        if (ctx.bossAuraTimer > 0) {
+            paintBossAuraOverlay(g2, panelW, panelH);
+        }
+        if (ctx.bossShockwaveTimer > 0) {
+            paintBossShockwave(g2);
+        }
+        if (ctx.bossFlashTimer > 0) {
+            int alpha = Math.min(200, ctx.bossFlashTimer * 14);
+            g2.setColor(new Color(255, 190, 245, alpha));
+            g2.fillRect(0, 0, panelW, panelH);
+        }
+        if (ctx.bossWarningTimer > 0 || ctx.bossArrivalTimer > 0) {
+            paintBossBanner(g2, panelW, panelH);
+        }
+    }
+
+    private void paintBossAuraOverlay(Graphics2D g2, int panelW, int panelH) {
+        float pulse = (float) (0.5 + 0.5 * Math.sin(ctx.tick * 0.16));
+        int veilAlpha = 36 + (int) (pulse * 28);
+        g2.setColor(new Color(28, 0, 42, veilAlpha));
+        g2.fillRect(0, 0, panelW, panelH);
+
+        int ringAlpha = 65 + (int) (pulse * 35);
+        g2.setStroke(new BasicStroke(18f));
+        g2.setColor(new Color(255, 120, 220, ringAlpha));
+        g2.drawRoundRect(10, 10, panelW - 20, panelH - 20, 28, 28);
+    }
+
+    private void paintBossShockwave(Graphics2D g2) {
+        float progress = 1f - (ctx.bossShockwaveTimer / 36f);
+        int centerX = ctx.waypoints[0][0];
+        int centerY = ctx.waypoints[0][1];
+        int radius = 70 + (int) (progress * 260);
+        int alpha = Math.max(0, 200 - (int) (progress * 180));
+
+        g2.setStroke(new BasicStroke(10f - (progress * 5f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g2.setColor(new Color(255, 180, 246, alpha));
+        g2.drawOval(centerX - radius, centerY - radius, radius * 2, radius * 2);
+        g2.setColor(new Color(255, 255, 255, alpha / 2));
+        g2.drawOval(centerX - radius - 18, centerY - radius - 18, (radius + 18) * 2, (radius + 18) * 2);
+    }
+
+    private void paintBossBanner(Graphics2D g2, int panelW, int panelH) {
+        boolean warningPhase = ctx.bossWarningTimer > 0;
+        int timer = warningPhase ? ctx.bossWarningTimer : ctx.bossArrivalTimer;
+        float normalized = Math.min(1f, timer / (warningPhase ? 72f : 84f));
+        float pulse = (float) (0.5 + 0.5 * Math.sin(ctx.tick * 0.24));
+
+        int overlayAlpha = warningPhase ? 110 : 150;
+        g2.setColor(new Color(3, 3, 8, overlayAlpha));
+        g2.fillRect(0, TOP_PANEL_H + 8, panelW, panelH - TOP_PANEL_H - 8);
+
+        int bannerW = 380;
+        int bannerH = warningPhase ? 122 : 146;
+        int bannerX = (panelW - bannerW) / 2;
+        int bannerY = 214 + (int) (Math.sin(ctx.tick * 0.18) * 6);
+        int glow = 26 + (int) (pulse * 38);
+
+        g2.setColor(new Color(255, 90, 214, glow));
+        g2.fillRoundRect(bannerX - 8, bannerY - 8, bannerW + 16, bannerH + 16, 30, 30);
+        g2.setColor(new Color(17, 10, 25, 232));
+        g2.fillRoundRect(bannerX, bannerY, bannerW, bannerH, 24, 24);
+        g2.setColor(new Color(255, 169, 236));
+        g2.setStroke(new BasicStroke(3f));
+        g2.drawRoundRect(bannerX, bannerY, bannerW, bannerH, 24, 24);
+
+        g2.setFont(new Font("Malgun Gothic", Font.BOLD, warningPhase ? 18 : 16));
+        g2.setColor(new Color(255, 210, 120));
+        drawCentered(g2, warningPhase ? "BOSS ALERT" : "BOSS ENCOUNTER", panelW / 2, bannerY + 30);
+
+        g2.setFont(new Font("Malgun Gothic", Font.BOLD, warningPhase ? 34 : 38));
+        g2.setColor(Color.WHITE);
+        drawCentered(g2, warningPhase ? "심연 군주 접근 중" : "보스 출현", panelW / 2, bannerY + 72);
+
+        g2.setFont(new Font("Malgun Gothic", Font.PLAIN, 14));
+        g2.setColor(new Color(214, 224, 244));
+        if (warningPhase) {
+            int seconds = (int) Math.ceil(ctx.bossWarningTimer / 20.0);
+            drawCentered(g2, "웨이브 " + ctx.wave + " 보스가 곧 전장에 진입합니다", panelW / 2, bannerY + 98);
+            drawCentered(g2, "HP " + ctx.bossPreviewHp + "  |  ETA " + seconds + "s", panelW / 2, bannerY + 118);
+        } else {
+            drawCentered(g2, "심연 군주가 방어선을 돌파하려 합니다", panelW / 2, bannerY + 100);
+            drawCentered(g2, "즉시 화력을 집중하세요", panelW / 2, bannerY + 122);
+        }
+
+        if (warningPhase) {
+            int frameW = 110;
+            int frameH = 110;
+            int frameX = bannerX - 138;
+            int frameY = bannerY + 6;
+            float scale = 1f + ((1f - normalized) * 0.14f) + (pulse * 0.05f);
+            drawBossPortrait(g2, frameX, frameY, frameW, frameH, scale);
+        }
+    }
+
+    private void drawBossPortrait(Graphics2D g2, int x, int y, int w, int h, float scale) {
+        int glow = 34 + (int) ((0.5 + 0.5 * Math.sin(ctx.tick * 0.22)) * 42);
+        g2.setColor(new Color(255, 96, 216, glow));
+        g2.fillRoundRect(x - 8, y - 8, w + 16, h + 16, 24, 24);
+        g2.setColor(new Color(22, 12, 32, 236));
+        g2.fillRoundRect(x, y, w, h, 20, 20);
+        g2.setColor(new Color(255, 192, 246));
+        g2.drawRoundRect(x, y, w, h, 20, 20);
+
+        BufferedImage sprite = assetManager.monsterDirectionalSprites[3][FACING_FRONT];
+        if (sprite != null) {
+            int drawW = Math.round(w * scale);
+            int drawH = Math.round(h * scale);
+            int drawX = x + (w - drawW) / 2;
+            int drawY = y + (h - drawH) / 2;
+            g2.drawImage(sprite, drawX, drawY, drawW, drawH, null);
         }
     }
 

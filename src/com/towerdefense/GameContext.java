@@ -26,6 +26,14 @@ public class GameContext {
     // 알림 시스템 통합
     public String toastMsg = "";
     public int toastTimer = 0;
+    public boolean bossWarningIssued = false;
+    public int bossWarningTimer = 0;
+    public int bossArrivalTimer = 0;
+    public int bossFlashTimer = 0;
+    public int bossShockwaveTimer = 0;
+    public int bossAuraTimer = 0;
+    public int bossScreenShakeTimer = 0;
+    public int bossPreviewHp = 0;
 
     public final int[] upgradeLevels = {0, 0, 0};
     public int hiddenUpgradeLevel = 0;
@@ -68,6 +76,32 @@ public class GameContext {
         this.toastTimer = duration;
     }
 
+    public void triggerBossWarning(int bossHp) {
+        bossWarningIssued = true;
+        bossWarningTimer = 72;
+        bossAuraTimer = 200;
+        bossPreviewHp = bossHp;
+    }
+
+    public void triggerBossArrivalImpact() {
+        bossWarningTimer = 0;
+        bossArrivalTimer = 84;
+        bossFlashTimer = 12;
+        bossShockwaveTimer = 36;
+        bossAuraTimer = 220;
+        bossScreenShakeTimer = 18;
+    }
+
+    public void updatePresentationTimers() {
+        if (toastTimer > 0) toastTimer--;
+        if (bossWarningTimer > 0) bossWarningTimer--;
+        if (bossArrivalTimer > 0) bossArrivalTimer--;
+        if (bossFlashTimer > 0) bossFlashTimer--;
+        if (bossShockwaveTimer > 0) bossShockwaveTimer--;
+        if (bossAuraTimer > 0) bossAuraTimer--;
+        if (bossScreenShakeTimer > 0) bossScreenShakeTimer--;
+    }
+
     public void reset() {
         life = 20;
         gold = 80;
@@ -79,6 +113,14 @@ public class GameContext {
         gameWon = false;
         toastMsg = "";
         toastTimer = 0;
+        bossWarningIssued = false;
+        bossWarningTimer = 0;
+        bossArrivalTimer = 0;
+        bossFlashTimer = 0;
+        bossShockwaveTimer = 0;
+        bossAuraTimer = 0;
+        bossScreenShakeTimer = 0;
+        bossPreviewHp = 0;
         for (int i = 0; i < 3; i++) upgradeLevels[i] = 0;
         hiddenUpgradeLevel = 0;
         monsters.clear();

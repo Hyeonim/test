@@ -31,16 +31,28 @@ public class WaveManager {
             ctx.waveTimer = 600;
             ctx.spawnedThisWave = 0;
             ctx.spawnCooldown = 20;
+            ctx.bossWarningIssued = false;
+            ctx.bossPreviewHp = 0;
         }
 
         boolean isBossWave = (ctx.wave % 10 == 0);
+
+        if (isBossWave && ctx.spawnedThisWave == 0 && !ctx.bossWarningIssued) {
+            ctx.triggerBossWarning(calculateBossHp());
+            ctx.showToast("WARNING: Boss wave " + ctx.wave, 50);
+        }
+
         if (ctx.waveTimer > 200) {
+            if (isBossWave && ctx.spawnedThisWave == 0 && ctx.bossWarningTimer > 0) return;
+
             ctx.spawnCooldown--;
             if (ctx.spawnCooldown <= 0) {
                 if (isBossWave) {
                     if (ctx.spawnedThisWave == 0) {
                         monsterManager.spawnBoss();
                         ctx.spawnedThisWave++;
+                        ctx.triggerBossArrivalImpact();
+                        ctx.showToast("BOSS INCOMING", 40);
                     }
                 } else {
                     monsterManager.spawnMonster();
@@ -49,5 +61,9 @@ public class WaveManager {
                 }
             }
         }
+    }
+
+    private int calculateBossHp() {
+        return (int) ((150 + (ctx.wave * 80) + (Math.pow(ctx.wave, 2) * 3.5)) * 15);
     }
 }
